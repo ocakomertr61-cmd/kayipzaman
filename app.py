@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
+from fpdf import FPDF
+import io
 
 # Page Configuration
 st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wide", page_icon="⏱️")
@@ -17,7 +19,7 @@ SUTUNLAR = [
     "Referans No", "Seri No", "Duruş Nedeni", "İşlem Açıklaması", 
     "Gelen Parti Miktarı", "Hata Oranı (%)", "P/H", 
     "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", "Son Durum", 
-    "Hata Görseli Linki", "Onay Belgesi Linki"
+    "Etiket Görseli Linki", "Hata Görseli Linki", "Onay Belgesi Linki"
 ]
 
 DURUM_OPSIYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
@@ -61,6 +63,65 @@ def load_data():
         return df
     except Exception:
         return pd.DataFrame(columns=SUTUNLAR)
+
+# --- PDF RAPOR OLUŞTURMA FONKSİYONU ---
+def create_pdf_report(dataframe, filtered_customer="Tüm Müşteriler"):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Başlık
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "MUSTERI KAYIP ZAMAN & DURUS RAPORU", ln=True, align="C")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 8, f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=True, align="C")
+    pdf.cell(0, 6, f"Filtre / Musteri: {filtered_customer}", ln=True, align="C")
+    pdf.ln(5)
+    
+    # Özet Metrikler
+    toplam_kayit = len(dataframe)
+    toplam_kayip = pd.to_numeric(dataframe['Kayıp Zaman (Saat)'], errors='coerce').sum()
+    onaylanan = pd.to_numeric(dataframe[dataframe['Son Durum'] == "Onay Geldi"]['Kayıp Zaman (Saat)'], errors='coerce').sum()
+    
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, f"Ozet Bilgiler:", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(60, 6, f"- Toplam Kayit: {toplam_kayit} Adet", ln=True)
+    pdf.cell(60, 6, f"- Toplam Kayip Zaman: {toplam_kayip:.1f} Saat", ln=True)
+    pdf.cell(60, 6, f"- Onaylanan Sure: {onaylanan:.1f} Saat", ln=True)
+    pdf.ln(5)
+    
+    # Tablo Başlıkları
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.cell(12, 7, "ID", border=1, align="C")
+    pdf.cell(35, 7, "Musteri", border=1, align="C")
+    pdf.cell(30, 7, "Referans No", border=1, align="C")
+    pdf.cell(40, 7, "Durus Nedeni", border=1, align="C")
+    pdf.cell(25, 7, "Hesap (Sa)", border=1, align="C")
+    pdf.cell(25, 7, "Kayip (Sa)", border=1, align="C")
+    pdf.cell(25, 7, "Son Durum", border=1, align="C")
+    pdf.ln()
+    
+    # Tablo Satırları
+    pdf.set_font("Helvetica", "", 7)
+    for idx, row in dataframe.iterrows():
+        m_adi = str(row["Müşteri Adı"])[:18] if pd.notna(row["Müşteri Adı"]) else ""
+        ref = str(row["Referans No"])[:14] if pd.notna(row["Referans No"]) else ""
+        neden = str(row["Duruş Nedeni"])[:20] if pd.notna(row["Duruş Nedeni"]) else ""
+        hesap = str(row["Hesaplanan Zaman (Saat)"]) if pd.notna(row["Hesaplanan Zaman (Saat)"]) else "0"
+        kayip = str(row["Kayıp Zaman (Saat)"]) if pd.notna(row["Kayıp Zaman (Saat)"]) else "0"
+        durum = str(row["Son Durum"]) if pd.notna(row["Son Durum"]) else ""
+        
+        pdf.cell(12, 6, str(row["ID"]), border=1, align="C")
+        pdf.cell(35, 6, m_adi, border=1)
+        pdf.cell(30, 6, ref, border=1)
+        pdf.cell(40, 6, neden, border=1)
+        pdf.cell(25, 6, hesap, border=1, align="C")
+        pdf.cell(25, 6, kayip, border=1, align="C")
+        pdf.cell(25, 6, durum, border=1, align="C")
+        pdf.ln()
+        
+    return bytes(pdf.output())
 
 # --- LOGIN EKRANI ---
 if not st.session_state["logged_in"]:
@@ -122,9 +183,9 @@ st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
 st.markdown("---")
 
 if user["role"] == "admin":
-    tab1, tab2, tab3 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Özet"])
+    tab1, tab2, tab3 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & PDF Raporu"])
 else:
-    tab2, tab3 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & Özet"])
+    tab2, tab3 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & PDF Raporu"])
 
 # ---------------- TAB 1: FORM (Yalnızca Admin) ----------------
 if user["role"] == "admin":
@@ -176,11 +237,13 @@ if user["role"] == "admin":
 
         islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...", key="f_aciklama")
         
-        c_link1, c_link2 = st.columns(2)
+        c_link1, c_link2, c_link3 = st.columns(3)
         with c_link1:
-            hata_gorseli_link = st.text_input("Hata Görseli Linki (Google Drive / OneDrive vb.)", key="f_gorsel")
+            etiket_gorseli_link = st.text_input("🏷️ Etiket Görseli Linki", key="f_etiket")
         with c_link2:
-            onay_belgesi_link = st.text_input("Gelen Onay Belgesi Linki (Google Drive / OneDrive vb.)", key="f_onay")
+            hata_gorseli_link = st.text_input("📷 Hata Görseli Linki", key="f_gorsel")
+        with c_link3:
+            onay_belgesi_link = st.text_input("📄 Onay Belgesi Linki", key="f_onay")
             
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 Kaydı Google Tabloya Kaydet", use_container_width=True, type="primary"):
@@ -211,6 +274,7 @@ if user["role"] == "admin":
                     "Hesaplanan Zaman (Saat)": hesaplanan_zaman,
                     "Kayıp Zaman (Saat)": kayip_zaman_saat,
                     "Son Durum": son_durum,
+                    "Etiket Görseli Linki": etiket_gorseli_link,
                     "Hata Görseli Linki": hata_gorseli_link,
                     "Onay Belgesi Linki": onay_belgesi_link
                 }])
@@ -318,6 +382,10 @@ with tab2:
                             
                             g_aciklama = st.text_area("İşlem Açıklaması", value=str(satir["İşlem Açıklaması"] if pd.notna(satir["İşlem Açıklaması"]) else ""))
                             
+                            g_etiket = st.text_input("Etiket Görseli Linki", value=str(satir["Etiket Görseli Linki"] if pd.notna(satir["Etiket Görseli Linki"]) else ""))
+                            g_gorsel = st.text_input("Hata Görseli Linki", value=str(satir["Hata Görseli Linki"] if pd.notna(satir["Hata Görseli Linki"]) else ""))
+                            g_onay = st.text_input("Onay Belgesi Linki", value=str(satir["Onay Belgesi Linki"] if pd.notna(satir["Onay Belgesi Linki"]) else ""))
+                            
                             col_update, col_delete = st.columns(2)
                             with col_update:
                                 btn_update = st.form_submit_button("✏️ Bu Kaydı Güncelle", use_container_width=True)
@@ -339,6 +407,9 @@ with tab2:
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = g_kayip
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Son Durum"] = g_durum
                                 clean_df.loc[clean_df['ID'] == secilen_id, "İşlem Açıklaması"] = g_aciklama
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Etiket Görseli Linki"] = g_etiket
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Hata Görseli Linki"] = g_gorsel
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Onay Belgesi Linki"] = g_onay
                                 
                                 conn.update(spreadsheet=SHEET_URL, data=clean_df)
                                 st.success(f"ID #{secilen_id} kaydı başarıyla güncellendi!")
@@ -376,12 +447,37 @@ with tab2:
             use_container_width=True
         )
 
-# ---------------- TAB 3: DASHBOARD ----------------
+# ---------------- TAB 3: DASHBOARD & PDF RAPOR ----------------
 with tab3:
-    st.subheader("Genel Durum & Analiz Panosu")
+    st.subheader("Genel Durum, Analiz Panosu & Müşteri PDF Raporu")
     df = load_data()
     
     if not df.empty and not df.dropna(how='all').empty:
+        # MÜŞTERİYE ÖZEL PDF RAPORU OLUŞTURMA ALANI
+        st.markdown("### 📄 Tek Tıkla Müşteri Raporu Oluştur (PDF)")
+        
+        musteri_listesi = ["Tüm Müşteriler"] + df['Müşteri Adı'].dropna().unique().tolist()
+        secilen_musteri = st.selectbox("Raporlanacak Müşteriyi Seçin:", options=musteri_listesi)
+        
+        if secilen_musteri == "Tüm Müşteriler":
+            rapor_df = df
+        else:
+            rapor_df = df[df['Müşteri Adı'] == secilen_musteri]
+            
+        pdf_data = create_pdf_report(rapor_df, secilen_musteri)
+        
+        st.download_button(
+            label=f"📄 {secilen_musteri} İçin PDF Raporunu İndir",
+            data=pdf_data,
+            file_name=f"Kayip_Zaman_Raporu_{secilen_musteri}_{datetime.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            type="primary"
+        )
+        
+        st.markdown("---")
+        
+        # METRİKLER
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Toplam Kayıt", f"{len(df)} Adet")
         
