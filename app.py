@@ -51,7 +51,12 @@ def get_gspread_client():
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
 
-def load_data():
+# --- KOTA KORUMASI İÇİN CACHE MEKANİZMASI ---
+@st.cache_data(ttl=600, show_spinner="Google Sheets'ten veriler yükleniyor...")
+def load_data_cached():
+    return _fetch_data_from_sheet()
+
+def _fetch_data_from_sheet():
     try:
         client = get_gspread_client()
         if client:
@@ -67,7 +72,7 @@ def load_data():
                 df[col] = None
         df = df[SUTUNLAR]
         
-        # Tip Dönüşümleri (Stabilite için kritik)
+        # Tip Dönüşümleri
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         df['Kayıp Zaman (Saat)'] = pd.to_numeric(df['Kayıp Zaman (Saat)'], errors='coerce').fillna(0.0)
         df['Hesaplanan Zaman (Saat)'] = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').fillna(0.0)
@@ -84,6 +89,9 @@ def load_data():
         st.error(f"Veri yükleme hatası: {e}")
         return pd.DataFrame(columns=SUTUNLAR)
 
+def load_data():
+    return load_data_cached()
+
 def update_google_sheet(df):
     try:
         client = get_gspread_client()
@@ -95,6 +103,9 @@ def update_google_sheet(df):
         df_to_write = df.fillna("")
         worksheet.clear()
         worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
+        
+        # Veri güncellendiğinde cache'i temizle ki yeni veriler anında yansısın
+        st.cache_data.clear()
         return True
     except Exception as e:
         st.error(f"Google Sheets güncelleme hatası: {e}")
@@ -215,6 +226,11 @@ with st.sidebar.expander("🔑 Parola Değiştir"):
                 st.session_state["users"][user["username"]]["password"] = new_p
                 st.success("Parolanız başarıyla değiştirildi!")
 
+if st.sidebar.button("🔄 Verileri Yenile (Cache Temizle)", use_container_width=True):
+    st.cache_data.clear()
+    st.success("Önbellek temizlendi, veriler yeniden yükleniyor...")
+    st.rerun()
+
 if st.sidebar.button("🚪 Çıkış Yap", use_container_width=True):
     st.session_state["logged_in"] = False
     st.session_state["user_info"] = None
@@ -224,7 +240,7 @@ if st.sidebar.button("🚪 Çıkış Yap", use_container_width=True):
 st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
 st.markdown("---")
 
-# Global Veri Yükleme
+# Global Veri Yükleme (Cache Destekli)
 df = load_data()
 
 if user["role"] == "admin":
@@ -544,7 +560,7 @@ with tab3:
             html_report = generate_customer_report(rapor_hedef_df, rapor_musteri_secim, secilen_analiz_donemi, secilen_sutunlar)
             
             st.download_button(
-                label=f"📥 {secilen_analiz_donemi} Dönemi Raporunu İndir (HTML / Tarayıcıda Aç)",
+                label=f"📥 {secilen_analiz_donemi} Dönemi Raporunu İndir (HTML / Tarayıcda Aç)",
                 data=html_report,
                 file_name=f"Rapor_{rapor_musteri_secim}_{secilen_analiz_donemi.replace(' ', '_')}.html",
                 mime="text/html",
@@ -558,7 +574,7 @@ with tab3:
         m1.metric(f"Toplam Kayıt ({secilen_analiz_donemi})", len(filtrelenmis_df))
         m2.metric("Toplam Kayıp Zaman", f"{toplam_kayip_sure:.1f} Saat")
         m3.metric("Onaylanan Süre", f"{pd.to_numeric(filtrelenmis_df[filtrelenmis_df['Son Durum'] == 'Onay Geldi']['Kayıp Zaman (Saat)'], errors='coerce').sum():.1f} Saat")
-        m4.metric("Bekleyen Süre", f"{pd.to_numeric(filtrelenmis_df[filtrelenmis_df['Son Durum'] == 'Mail Atıldı']['Kayıp Zaman (Saat)'], errors='coerce').sum():.1f} Saat")
+        m4.metric("Bekleyen Süre", f"{pd.to_numeric(filtrelenmis_df[filtrelenmis_df['Son Durum'] == 'Mail Atıldı']['Kayıp Zaman (Saat)'], errors='coerce'].sum():.1f} Saat")
         
         st.markdown("---")
         c1, c2 = st.columns(2)
@@ -568,7 +584,7 @@ with tab3:
                 grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adı')['Kayıp Zaman (Saat)'].sum()
                 st.bar_chart(grafik_veri_1)
             else:
-                st.info("Bu dönemde veri bulunmuyor.")
+                st.info("Bu dönemde veri bulunbuyor.")
         with c2:
             st.write(f"### {secilen_analiz_donemi} - Duruş Nedenlerine Göre Dağılım")
             if not filtrelenmis_df.empty:
