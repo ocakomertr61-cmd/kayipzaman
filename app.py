@@ -73,7 +73,6 @@ def _fetch_data_from_sheet():
         
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
-        # Ondalıklı sayıların doğru okunması
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if num_col in df.columns:
                 s = df[num_col].astype(str).str.strip().str.replace(',', '', regex=False).str.replace('.', '', regex=False)
@@ -138,14 +137,33 @@ if "logged_in" not in st.session_state:
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
 
+# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ (İstediğiniz Format) ---
+if "gecmis_ozetler" not in st.session_state:
+    st.session_state["gecmis_ozetler"] = [
+        {"Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Süreç başlangıcı / Veri bekleniyor"},
+        {"Dönem": "Mart 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
+        {"Dönem": "Nisan 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
+        {"Dönem": "Mayıs 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
+        {"Dönem": "Haziran 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
+        {"Dönem": "Temmuz 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
+        {"Dönem": "Ağustos 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"}
+    ]
+
 # --- RAPOR OLUŞTURUCU HTML ---
-def generate_customer_report(dataframe, filtered_customer, filtered_donem, selected_columns):
+def generate_customer_report(dataframe, filtered_customer, filtered_donem, selected_columns, manuel_ozet_df=None):
     filtered_df = dataframe[selected_columns] if selected_columns else dataframe
     
     toplam_kayit = len(dataframe)
     toplam_hesaplanan = pd.to_numeric(dataframe['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
     onaylanan = pd.to_numeric(dataframe[dataframe['Son Durum'] == "Onay Geldi"]['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
     
+    manuel_html = ""
+    if manuel_ozet_df is not None and not manuel_ozet_df.empty:
+        manuel_html = f"""
+        <h3 style="color: #1f77b4; margin-top: 30px;">Geçmiş Dönem Manuel Özet Kayıtları (Şubat 2026 - Ağustos 2026)</h3>
+        {manuel_ozet_df.to_html(index=False, escape=False)}
+        """
+
     html_content = f"""
     <!DOCTYPE html>
     <html lang="tr">
@@ -171,11 +189,16 @@ def generate_customer_report(dataframe, filtered_customer, filtered_donem, selec
         </div>
         <div class="info">
             <p><strong>Rapor Tarihi:</strong> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
-            <p><strong>Seçilen Dönem:</strong> {filtered_donem}</p>
+            <p><strong>Rapor Kapsamı / Dönem:</strong> {filtered_donem}</p>
             <p><strong>Raporlanan Müşteri / Kriter:</strong> {filtered_customer}</p>
-            <p><strong>Toplam Kayıt:</strong> {toplam_kayit} Adet &nbsp;|&nbsp; <strong>Toplam Hesaplanan Zaman:</strong> {toplam_hesaplanan:.2f} Saat &nbsp;|&nbsp; <strong>Onaylanan Süre:</strong> {onaylanan:.2f} Saat</p>
+            <p><strong>Sistem İçi Kayıt Adeti:</strong> {toplam_kayit} Adet &nbsp;|&nbsp; <strong>Toplam Hesaplanan Zaman:</strong> {toplam_hesaplanan:.2f} Saat &nbsp;|&nbsp; <strong>Onaylanan Süre:</strong> {onaylanan:.2f} Saat</p>
         </div>
+        
+        <h3 style="color: #1f77b4;">Aktif Sistem Verileri</h3>
         {filtered_df.to_html(index=False, escape=False)}
+        
+        {manuel_html}
+        
         <div class="footer">
             <p>Bu rapor Müşteri Kayıp Zaman & Fatura Takip Sistemi üzerinden otomatik olarak üretilmiştir.</p>
         </div>
@@ -250,9 +273,9 @@ st.markdown("---")
 df = load_data()
 
 if user["role"] == "admin":
-    tab1, tab2, tab3 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Rapor"])
+    tab1, tab2, tab3, tab4 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Rapor", "📁 Geçmiş Dönem Manuel Veriler"])
 else:
-    tab2, tab3 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & Rapor"])
+    tab2, tab3, tab4 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & Rapor", "📁 Geçmiş Dönem Manuel Veriler"])
 
 # ---------------- TAB 1: FORM ----------------
 if user["role"] == "admin":
@@ -537,8 +560,29 @@ with tab3:
     st.subheader("Analiz Panosu & Dönemsel Müşteri Raporu")
     df = load_data()
     
+    # Geçmiş dönem özet DataFrame'i
+    manuel_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
+    
+    # --- TÜM ZAMANLAR KÜMÜLATİF HESAPLAMALAR (Aktif Sistem + Manuel Geçmiş) ---
+    aktif_talep_toplam = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
+    aktif_onay_toplam = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
+    
+    manuel_talep_toplam = pd.to_numeric(manuel_df['Talep Edilen Kayıp Zaman (Saat)'], errors='coerce').sum()
+    manuel_onay_toplam = pd.to_numeric(manuel_df['Onaylanan Kayıp Zaman (Saat)'], errors='coerce').sum()
+    
+    tum_zamanlar_talep = aktif_talep_toplam + manuel_talep_toplam
+    tum_zamanlar_onay = aktif_onay_toplam + manuel_onay_toplam
+    
+    # --- TÜM ZAMANLAR ÜST ÖZET KARTLARI ---
+    st.markdown("### 🌐 Tüm Zamanlar Genel Kümülatif Özet (Geçmiş + Aktif Sistem)")
+    tz1, tz2 = st.columns(2)
+    tz1.metric("Tüm Zamanlar Toplam Talep Edilen Kayıp Zaman", f"{tum_zamanlar_talep:.2f} Saat")
+    tz2.metric("Tüm Zamanlar Toplam Onaylanan Kayıp Zaman", f"{tum_zamanlar_onay:.2f} Saat")
+    
+    st.markdown("---")
+    
     if not df.empty and not df.dropna(how='all').empty:
-        st.markdown("### 🔍 Dönem ve Müşteri Filtreleme")
+        st.markdown("### 🔍 Dönem ve Müşteri Filtreleme (Aktif Sistem Verileri İçin)")
         col_f_ust1, col_f_ust2 = st.columns(2)
         
         mevcut_donemler = sorted(df['Dönem (Ay/Yıl)'].dropna().unique().tolist())
@@ -589,10 +633,10 @@ with tab3:
         if not secilen_sutunlar:
             st.warning("⚠️ Lütfen raporda görünmesi için en az bir sütun seçin!")
         else:
-            html_report = generate_customer_report(rapor_hedef_df, rapor_musteri_secim, secilen_analiz_donemi, secilen_sutunlar)
+            html_report = generate_customer_report(rapor_hedef_df, rapor_musteri_secim, secilen_analiz_donemi, secilen_sutunlar, manuel_df)
             
             st.download_button(
-                label=f"📥 {secilen_analiz_donemi} Dönemi Raporunu İndir (HTML / Tarayıcıda Aç)",
+                label=f"📥 {secilen_analiz_donemi} Dönemi ve Geçmiş Özet Raporunu İndir (HTML / Tarayıcıda Aç)",
                 data=html_report,
                 file_name=f"Rapor_{rapor_musteri_secim}_{secilen_analiz_donemi.replace(' ', '_')}.html",
                 mime="text/html",
@@ -611,6 +655,11 @@ with tab3:
         
         bekleyen_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Mail Atıldı', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         m4.metric("Bekleyen Süre", f"{bekleyen_sure:.2f} Saat")
+        
+        st.markdown("---")
+        st.markdown("### 📁 Geçmiş Dönem Manuel Özet Raporu (Şubat 2026 - Ağustos 2026)")
+        st.caption("Geçmiş 7 aylık sürece ait talep edilen ve onaylanan kayıp zaman özetleri aşağıda listelenmiştir.")
+        st.dataframe(manuel_df, use_container_width=True)
         
         st.markdown("---")
         st.write("### 📊 Görsel Analiz Panosu & Dağılımlar")
@@ -639,7 +688,6 @@ with tab3:
                 st.markdown("**⚙️ Duruş Nedenlerine Göre Zaman Kayıpları**")
                 g_data_neden = filtrelenmis_df.groupby('Duruş Nedeni')['Hesaplanan Zaman (Saat)'].sum().reset_index()
                 if not g_data_neden.empty:
-                    # Pareto tarzı yatay çubuk grafik ile en büyük arıza/neden en üstte görünür
                     g_data_neden = g_data_neden.sort_values(by='Hesaplanan Zaman (Saat)', ascending=True)
                     fig_neden = px.bar(
                         g_data_neden, 
@@ -655,7 +703,6 @@ with tab3:
                 else:
                     st.info("Veri bulunmuyor.")
             
-            # --- İKİNCİ SATIR GRAFİK: DURUM DAĞILIMI (PASTA GRAFİK) ---
             st.markdown("<br>", unsafe_allow_html=True)
             c_graf3, c_graf4 = st.columns(2)
             
@@ -695,3 +742,25 @@ with tab3:
             st.info("Bu dönemde analiz edilecek veri bulunmuyor.")
     else:
         st.info("Henüz analiz edilecek veri bulunmuyor.")
+
+# ---------------- TAB 4: GEÇMİŞ DÖNEM MANUEL VERİ YÖNETİMİ ----------------
+with tab4:
+    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri Yönetimi")
+    st.markdown("Şubat 2026 - Ağustos 2026 dönemine ait talep edilen ve onaylanan kayıp zaman saatlerini aşağıdan düzenleyerek güncelleyebilirsiniz.")
+    
+    gecmis_df_editable = st.data_editor(
+        pd.DataFrame(st.session_state["gecmis_ozetler"]),
+        column_config={
+            "Dönem": st.column_config.TextColumn("Dönem", disabled=True),
+            "Talep Edilen Kayıp Zaman (Saat)": st.column_config.NumberColumn("Talep Edilen Kayıp Zaman (Saat)", format="%.2f"),
+            "Onaylanan Kayıp Zaman (Saat)": st.column_config.NumberColumn("Onaylanan Kayıp Zaman (Saat)", format="%.2f"),
+            "Açıklama": st.column_config.TextColumn("Açıklama / Notlar")
+        },
+        use_container_width=True,
+        key="gecmis_editor_final"
+    )
+    
+    if st.button("🔄 Geçmiş Dönem Verilerini Kaydet", use_container_width=True, type="primary"):
+        st.session_state["gecmis_ozetler"] = gecmis_df_editable.to_dict(orient="records")
+        st.success("Geçmiş 7 aylık dönem verileri başarıyla güncellendi ve kümülatif hesaplamalara yansıtıldı!")
+        st.rerun()
