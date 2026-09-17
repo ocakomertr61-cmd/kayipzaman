@@ -70,13 +70,17 @@ def _fetch_data_from_sheet():
                 df[col] = None
         df = df[SUTUNLAR]
         
-        # Tip Dönüşümleri
+        # Sayısal Değerleri Doğru Dönüştürme (Ondalık Hassasiyet Koruması)
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
-        df['Kayıp Zaman (Saat)'] = pd.to_numeric(df['Kayıp Zaman (Saat)'], errors='coerce').fillna(0.0)
-        df['Hesaplanan Zaman (Saat)'] = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').fillna(0.0)
-        df['Gelen Parti Miktarı'] = pd.to_numeric(df['Gelen Parti Miktarı'], errors='coerce').fillna(0)
-        df['Hata Oranı (%)'] = pd.to_numeric(df['Hata Oranı (%)'], errors='coerce').fillna(0.0)
-        df['P/H'] = pd.to_numeric(df['P/H'], errors='coerce').fillna(100.0)
+        
+        for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
+            if num_col in df.columns:
+                # Eğer veriler string gelip nokta/virgül karmaşası yaşadıysa düzelt
+                if df[num_col].dtype == object:
+                    df[num_col] = df[num_col].astype(str).str.replace(',', '.', regex=False)
+                df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
+        
+        df['Gelen Parti Miktarı'] = pd.to_numeric(df['Gelen Parti Miktarı'], errors='coerce').fillna(0).astype(int)
         
         if "Dönem (Ay/Yıl)" in df.columns:
             df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].astype(str).str.strip()
@@ -98,7 +102,13 @@ def update_google_sheet(df):
         spreadsheet = client.open_by_url(SHEET_URL)
         worksheet = spreadsheet.get_worksheet(0)
         
-        df_to_write = df.fillna("")
+        # Verileri yazarken ondalık basamakların bozulmaması için string formatına güvenli aktarım
+        df_to_write = df.copy()
+        for col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
+            if col in df_to_write.columns:
+                df_to_write[col] = pd.to_numeric(df_to_write[col], errors='coerce').round(2)
+                
+        df_to_write = df_to_write.fillna("")
         worksheet.clear()
         worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
         
@@ -163,7 +173,7 @@ def generate_customer_report(dataframe, filtered_customer, filtered_donem, selec
             <p><strong>Rapor Tarihi:</strong> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
             <p><strong>Seçilen Dönem:</strong> {filtered_donem}</p>
             <p><strong>Raporlanan Müşteri / Kriter:</strong> {filtered_customer}</p>
-            <p><strong>Toplam Kayıt:</strong> {toplam_kayit} Adet &nbsp;|&nbsp; <strong>Toplam Hesaplanan Zaman:</strong> {toplam_hesaplanan:.1f} Saat &nbsp;|&nbsp; <strong>Onaylanan Süre:</strong> {onaylanan:.1f} Saat</p>
+            <p><strong>Toplam Kayıt:</strong> {toplam_kayit} Adet &nbsp;|&nbsp; <strong>Toplam Hesaplanan Zaman:</strong> {toplam_hesaplanan:.2f} Saat &nbsp;|&nbsp; <strong>Onaylanan Süre:</strong> {onaylanan:.2f} Saat</p>
         </div>
         {filtered_df.to_html(index=False, escape=False)}
         <div class="footer">
@@ -281,14 +291,15 @@ if user["role"] == "admin":
                     min_value=0.0, 
                     value=canli_hesaplanan_saat, 
                     step=0.1, 
+                    format="%.2f",
                     key="f_hesaplanan_manuel"
                 )
             else:
                 hesaplanan_zaman = canli_hesaplanan_saat
-                st.success(f"⏱️ **Hesaplanan Zaman: {hesaplanan_zaman} Saat**  \n*(Detay: {int(canli_islem_adet)} Adet Hatalı Parça / {ph} P/H)*")
+                st.success(f"⏱️ **Hesaplanan Zaman: {hesaplanan_zaman:.2f} Saat**  \n*(Detay: {int(canli_islem_adet)} Adet Hatalı Parça / {ph} P/H)*")
                 
             st.markdown("---")
-            kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=1.0, step=0.1, key="f_kayip")
+            kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=1.0, step=0.1, format="%.2f", key="f_kayip")
             son_durum = st.selectbox("Son Durum *", DURUM_OPSIYONLARI, key="f_durum")
 
         islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...", key="f_aciklama")
@@ -328,8 +339,8 @@ if user["role"] == "admin":
                     "Gelen Parti Miktarı": gelen_parti,
                     "Hata Oranı (%)": hata_orani,
                     "P/H": ph,
-                    "Hesaplanan Zaman (Saat)": hesaplanan_zaman,
-                    "Kayıp Zaman (Saat)": kayip_zaman_saat,
+                    "Hesaplanan Zaman (Saat)": round(float(hesaplanan_zaman), 2),
+                    "Kayıp Zaman (Saat)": round(float(kayip_zaman_saat), 2),
                     "Son Durum": son_durum,
                     "Etiket Görseli Linki": etiket_gorseli_link,
                     "Hata Görseli Linki": hata_gorseli_link,
@@ -360,7 +371,9 @@ with tab2:
                     "Seç": st.column_config.CheckboxColumn("Seç", default=False),
                     "ID": st.column_config.NumberColumn("ID", disabled=True),
                     "Dönem (Ay/Yıl)": st.column_config.SelectboxColumn("Dönem (Ay/Yıl)", options=DONEM_LISTESI, required=True),
-                    "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0.0, max_value=100.0, format="%.1f%%"),
+                    "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0.0, max_value=100.0, format="%.2f%%"),
+                    "Hesaplanan Zaman (Saat)": st.column_config.NumberColumn("Hesaplanan Zaman (Saat)", format="%.2f"),
+                    "Kayıp Zaman (Saat)": st.column_config.NumberColumn("Kayıp Zaman (Saat)", format="%.2f"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
                 },
@@ -430,12 +443,12 @@ with tab2:
                                 idx_neden = DURUS_NEDENLERI.index(satir["Duruş Nedeni"]) if satir["Duruş Nedeni"] in DURUS_NEDENLERI else 0
                                 g_neden = st.selectbox("Duruş Nedeni", DURUS_NEDENLERI, index=idx_neden)
                                 g_parti = st.number_input("Gelen Parti", value=int(satir["Gelen Parti Miktarı"]) if pd.notna(satir["Gelen Parti Miktarı"]) else 1000)
-                                g_hata = st.number_input("Hata Oranı (%)", value=float(satir["Hata Oranı (%)"]) if pd.notna(satir["Hata Oranı (%)"]) else 10.0)
-                                g_ph = st.number_input("P/H", value=float(satir["P/H"]) if pd.notna(satir["P/H"]) else 100.0)
+                                g_hata = st.number_input("Hata Oranı (%)", value=float(satir["Hata Oranı (%)"]) if pd.notna(satir["Hata Oranı (%)"]) else 10.0, format="%.2f")
+                                g_ph = st.number_input("P/H", value=float(satir["P/H"]) if pd.notna(satir["P/H"]) else 100.0, format="%.2f")
                             
                             with c3:
-                                g_hesaplanan = st.number_input("Hesaplanan Zaman", value=float(satir["Hesaplanan Zaman (Saat)"]) if pd.notna(satir["Hesaplanan Zaman (Saat)"]) else 1.0)
-                                g_kayip = st.number_input("Kayıp Zaman", value=float(satir["Kayıp Zaman (Saat)"]) if pd.notna(satir["Kayıp Zaman (Saat)"]) else 1.0)
+                                g_hesaplanan = st.number_input("Hesaplanan Zaman", value=float(satir["Hesaplanan Zaman (Saat)"]) if pd.notna(satir["Hesaplanan Zaman (Saat)"]) else 1.0, format="%.2f")
+                                g_kayip = st.number_input("Kayıp Zaman", value=float(satir["Kayıp Zaman (Saat)"]) if pd.notna(satir["Kayıp Zaman (Saat)"]) else 1.0, format="%.2f")
                                 idx_durum = DURUM_OPSIYONLARI.index(satir["Son Durum"]) if satir["Son Durum"] in DURUM_OPSIYONLARI else 0
                                 g_durum = st.selectbox("Son Durum", DURUM_OPSIYONLARI, index=idx_durum)
                             
@@ -463,8 +476,8 @@ with tab2:
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Gelen Parti Miktarı"] = g_parti
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Hata Oranı (%)"] = g_hata
                                 clean_df.loc[clean_df['ID'] == secilen_id, "P/H"] = g_ph
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Hesaplanan Zaman (Saat)"] = g_hesaplanan
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = g_kayip
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Hesaplanan Zaman (Saat)"] = round(g_hesaplanan, 2)
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = round(g_kayip, 2)
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Son Durum"] = g_durum
                                 clean_df.loc[clean_df['ID'] == secilen_id, "İşlem Açıklaması"] = g_aciklama
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Etiket Görseli Linki"] = g_etiket
@@ -520,14 +533,14 @@ with tab3:
         if secilen_analiz_musteri != "Tüm Müşteriler":
             filtrelenmis_df = filtrelenmis_df[filtrelenmis_df['Müşteri Adı'] == secilen_analiz_musteri]
             
-        # Toplam Hesaplanan Zaman (Formülden veya Manuel girilip tabloya giden "Hesaplanan Zaman (Saat)" sütunundan toplanır)
+        # Toplam Hesaplanan Zaman
         toplam_hesaplanan_sure = pd.to_numeric(filtrelenmis_df['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         gosterilecek_musteri_adi = secilen_analiz_musteri if secilen_analiz_musteri != "Tüm Müşteriler" else "Tüm Müşteriler"
         
-        # --- ÜST ÖZET BANNER (Artık "Hesaplanan Zaman" verisini toplar ve gösterir) ---
+        # --- ÜST ÖZET BANNER ---
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #1f77b4, #2ca02c); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h3 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">{secilen_analiz_donemi} &mdash; {toplam_hesaplanan_sure:.1f} Saat &mdash; {gosterilecek_musteri_adi}</h3>
+            <h3 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">{secilen_analiz_donemi} &mdash; {toplam_hesaplanan_sure:.2f} Saat &mdash; {gosterilecek_musteri_adi}</h3>
             <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Seçilen kriterlere ait toplam hesaplanan zaman özetidir.</p>
         </div>
         """, unsafe_allow_html=True)
@@ -567,20 +580,20 @@ with tab3:
         st.markdown("---")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric(f"Toplam Kayıt ({secilen_analiz_donemi})", len(filtrelenmis_df))
-        m2.metric("Toplam Hesaplanan Zaman", f"{toplam_hesaplanan_sure:.1f} Saat")
+        m2.metric("Toplam Hesaplanan Zaman", f"{toplam_hesaplanan_sure:.2f} Saat")
         
         onaylanan_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
-        m3.metric("Onaylanan Süre", f"{onaylanan_sure:.1f} Saat")
+        m3.metric("Onaylanan Süre", f"{onaylanan_sure:.2f} Saat")
         
         bekleyen_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Mail Atıldı', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
-        m4.metric("Bekleyen Süre", f"{bekleyen_sure:.1f} Saat")
+        m4.metric("Bekleyen Süre", f"{bekleyen_sure:.2f} Saat")
         
         st.markdown("---")
         c1, c2 = st.columns(2)
         with c1:
             st.write(f"### {secilen_analiz_donemi} - Müşteri Bazlı Hesaplanan Zamanlar")
             if not filtrelenmis_df.empty:
-                grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum()
+                grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adы')['Hesaplanan Zaman (Saat)'].sum() if 'Müşteri Adы' in filtrelenmis_df.columns else filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum()
                 st.bar_chart(grafik_veri_1)
             else:
                 st.info("Bu dönemde veri bulunmuyor.")
