@@ -143,7 +143,6 @@ def generate_customer_report(dataframe, filtered_customer, filtered_donem, selec
     
     toplam_kayit = len(dataframe)
     toplam_hesaplanan = pd.to_numeric(dataframe['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
-    # Onaylanan süre: Son Durumu 'Onay Geldi' olanların hesaplanan zaman toplamı
     onaylanan = pd.to_numeric(dataframe[dataframe['Son Durum'] == "Onay Geldi"]['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
     
     html_content = f"""
@@ -376,6 +375,10 @@ with tab2:
                     "Kayıp Zaman (Saat)": st.column_config.NumberColumn("Kayıp Zaman (Saat)", format="%.2f"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
+                    # LİNK KOLONLARINI TIKLANABİLİR YAPMA:
+                    "Etiket Görseli Linki": st.column_config.LinkColumn("Etiket Görseli", display_text="🔗 Etiket Linki"),
+                    "Hata Görseli Linki": st.column_config.LinkColumn("Hata Görseli", display_text="🔗 Hata Linki"),
+                    "Onay Belgesi Linki": st.column_config.LinkColumn("Onay Belgesi", display_text="🔗 Onay Linki"),
                 },
                 use_container_width=True,
                 key="editor"
@@ -418,14 +421,37 @@ with tab2:
             col_bireysel, col_tumunu_sil = st.columns([2, 1])
             
             with col_bireysel:
-                st.subheader("🎯 Bireysel Satır Düzenleme / Tekil Silme")
+                st.subheader("🎯 Bireysel Satır Düzenleme & Doküman Ön İzleme")
                 id_listesi = df['ID'].dropna().astype(int).unique().tolist()
                 secilen_id = st.selectbox("ID Numarası Seçin:", options=id_listesi) if id_listesi else None
                 
                 if secilen_id:
                     satir = df[df['ID'] == secilen_id].iloc[0]
                     
-                    with st.expander(f"🔍 ID #{secilen_id} Detayları", expanded=False):
+                    # --- DOKÜMAN HIZLI ERİŞİM & ÖN İZLEME PANELİ ---
+                    st.markdown(f"**📂 ID #{secilen_id} &mdash; {satir['Müşteri Adı']} ({satir['Referans No']}) Doküman Ön İzlemesi:**")
+                    l_et = str(satir.get("Etiket Görseli Linki", ""))
+                    l_hat = str(satir.get("Hata Görseli Linki", ""))
+                    l_ony = str(satir.get("Onay Belgesi Linki", ""))
+                    
+                    col_p1, col_p2, col_p3 = st.columns(3)
+                    with col_p1:
+                        if l_et and l_et.startswith("http"):
+                            st.markdown(f"[🏷️ Etiket Görselini Aç]({l_et})", unsafe_allow_html=True)
+                        else:
+                            st.caption("🏷️ Etiket Linki Yok")
+                    with col_p2:
+                        if l_hat and l_hat.startswith("http"):
+                            st.markdown(f"[📷 Hata Görselini Aç]({l_hat})", unsafe_allow_html=True)
+                        else:
+                            st.caption("📷 Hata Linki Yok")
+                    with col_p3:
+                        if l_ony and l_ony.startswith("http"):
+                            st.markdown(f"[📄 Onay Belgesini Aç]({l_ony})", unsafe_allow_html=True)
+                        else:
+                            st.caption("📄 Onay Belgesi Yok")
+                    
+                    with st.expander(f"✏️ ID #{secilen_id} Detaylarını Düzenle / Sil", expanded=False):
                         with st.form(f"form_guncelle_{secilen_id}"):
                             c1, c2, c3 = st.columns(3)
                             with c1:
@@ -454,9 +480,9 @@ with tab2:
                             
                             g_aciklama = st.text_area("İşlem Açıklaması", value=str(satir["İşlem Açıklaması"] if pd.notna(satir["İşlem Açıklaması"]) else ""))
                             
-                            g_etiket = st.text_input("Etiket Görseli Linki", value=str(satir["Etiket Görseli Linki"] if pd.notna(satir["Etiket Görseli Linki"]) else ""))
-                            g_gorsel = st.text_input("Hata Görseli Linki", value=str(satir["Hata Görseli Linki"] if pd.notna(satir["Hata Görseli Linki"]) else ""))
-                            g_onay = st.text_input("Onay Belgesi Linki", value=str(satir["Onay Belgesi Linki"] if pd.notna(satir["Onay Belgesi Linki"]) else ""))
+                            g_etiket = st.text_input("Etiket Görseli Linki", value=l_et)
+                            g_gorsel = st.text_input("Hata Görseli Linki", value=l_hat)
+                            g_onay = st.text_input("Onay Belgesi Linki", value=l_ony)
                             
                             col_update, col_delete = st.columns(2)
                             with col_update:
@@ -582,11 +608,9 @@ with tab3:
         m1.metric(f"Toplam Kayıt ({secilen_analiz_donemi})", len(filtrelenmis_df))
         m2.metric("Toplam Hesaplanan Zaman", f"{toplam_hesaplanan_sure:.2f} Saat")
         
-        # Onaylanan Süre: Son durumu 'Onay Geldi' olanların Hesaplanan Zaman sütununun toplamı
         onaylanan_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         m3.metric("Onaylanan Süre", f"{onaylanan_sure:.2f} Saat")
         
-        # Bekleyen Süre: Son durumu 'Mail Atıldı' olanların Hesaplanan Zaman sütununun toplamı
         bekleyen_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Mail Atıldı', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         m4.metric("Bekleyen Süre", f"{bekleyen_sure:.2f} Saat")
         
