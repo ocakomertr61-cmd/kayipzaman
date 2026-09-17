@@ -28,7 +28,7 @@ DURUS_NEDENLERI = [
     "Diğer"
 ]
 
-# --- ESNEK VE GÜVENLİ GSPREAD BAĞLANTI YARDIMCISI ---
+# --- STREAMLIT SECRETS İLE GSPREAD BAĞLANTISI ---
 def get_gspread_client():
     try:
         scope = [
@@ -36,37 +36,9 @@ def get_gspread_client():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        secrets_dict = None
-        
-        # 1. Alternatif: [connections.gsheets] var mı?
-        try:
-            if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-                secrets_dict = dict(st.secrets["connections"]["gsheets"])
-        except:
-            pass
-            
-        # 2. Alternatif: [service_account] var mı?
-        if not secrets_dict:
-            try:
-                if "service_account" in st.secrets:
-                    secrets_dict = dict(st.secrets["service_account"])
-            except:
-                pass
-                
-        # 3. Alternatif: Doğrudan root düzeyinde mi?
-        if not secrets_dict:
-            try:
-                if "private_key" in st.secrets:
-                    secrets_dict = dict(st.secrets)
-            except:
-                pass
-                
-        if secrets_dict:
-            creds = Credentials.from_service_account_info(secrets_dict, scopes=scope)
-            return gspread.authorize(creds)
-        else:
-            st.error("⚠️ Streamlit secrets içinde Google Servis Hesabı (Service Account) bilgileri bulunamadı. Lütfen secrets ayarlarınızı kontrol edin.")
-            return None
+        credentials_dict = dict(st.secrets["gcp_service_account"])
+        creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
+        return gspread.authorize(creds)
             
     except Exception as e:
         st.error(f"Kimlik doğrulama hatası: {e}")
@@ -98,7 +70,7 @@ def update_google_sheet(df):
         if not client:
             return False
         spreadsheet = client.open_by_url(SHEET_URL)
-        worksheet = spreadsheet.get_worksheet(0) # İlk sayfa
+        worksheet = spreadsheet.get_worksheet(0)
         
         df_to_write = df.fillna("")
         worksheet.clear()
