@@ -520,13 +520,15 @@ with tab3:
         if secilen_analiz_musteri != "Tüm Müşteriler":
             filtrelenmis_df = filtrelenmis_df[filtrelenmis_df['Müşteri Adı'] == secilen_analiz_musteri]
             
+        # Toplam kayıp zaman (Doğrudan kullanıcının seçtiği ve kaydettiği fiili duruş / kayıp zaman sütunundan toplanır)
         toplam_kayip_sure = pd.to_numeric(filtrelenmis_df['Kayıp Zaman (Saat)'], errors='coerce').sum()
         gosterilecek_musteri_adi = secilen_analiz_musteri if secilen_analiz_musteri != "Tüm Müşteriler" else "Tüm Müşteriler"
         
+        # --- ÜST ÖZET BANNER (Örn: Eylül 2026 — 434 Saat — Legrand) ---
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #1f77b4, #2ca02c); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <h3 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">{secilen_analiz_donemi} &mdash; {toplam_kayip_sure:.1f} Saat &mdash; {gosterilecek_musteri_adi}</h3>
-            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Seçilen kriterlere ait toplam duruş ve kayıp zaman özetidir.</p>
+            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Seçilen kriterlere ait toplam fiili kayıp zaman özetidir.</p>
         </div>
         """, unsafe_allow_html=True)
         
