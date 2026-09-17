@@ -1,16 +1,14 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
+import gspread
+from google.oauth2.service_account import Credentials
 
 # Page Configuration
 st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wide", page_icon="⏱️")
 
-# Google Sheet URL (Orijinal Kararlı Bağlantı)
+# Google Sheet URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1UsGlWxzRmiriAufzk14D0oiS3CyHMAjENyFhIbw9VG4/edit?pli=1&gid=0#gid=0"
-
-# Google Sheets Connection
-conn = st.connection("gsheets", type=GSheetsConnection)
 
 SUTUNLAR = [
     "ID", "Tarih", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
@@ -30,18 +28,63 @@ DURUS_NEDENLERI = [
     "Diğer"
 ]
 
-# --- GSPREAD İLE GÜVENLİ GOOGLE SHEETS YAZMA YARDIMCISI ---
+# --- GSPREAD İLE DOĞRUDAN VE GÜVENLİ BAĞLANTI YARDIMCISI ---
+def get_gspread_client():
+    try:
+        # Streamlit secrets içindeki gsheets bilgilerini alıyoruz
+        secrets_dict = dict(st.secrets["connections"]["gsheets"])
+        scope = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        creds = Credentials.from_service_account_info(secrets_dict, scopes=scope)
+        client = gspread.authorize(creds)
+        return client
+    except Exception as e:
+        # Alternatif olarak doğrudan service_account bloğunu da kontrol edelim
+        try:
+            if "service_account" in st.secrets:
+                secrets_dict = dict(st.secrets["service_account"])
+                scope = [
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive"
+                ]
+                creds = Credentials.from_service_account_info(secrets_dict, scopes=scope)
+                return gspread.authorize(creds)
+        except:
+            pass
+        st.error(f"Kimlik doğrulama hatası: {e}")
+        return None
+
+def load_data():
+    try:
+        client = get_gspread_client()
+        if client:
+            spreadsheet = client.open_by_url(SHEET_URL)
+            worksheet = spreadsheet.get_worksheet(0)
+            data = worksheet.get_all_records()
+            df = pd.DataFrame(data)
+        else:
+            df = pd.DataFrame(columns=SUTUNLAR)
+            
+        for col in SUTUNLAR:
+            if col not in df.columns:
+                df[col] = None
+        df = df[SUTUNLAR]
+        df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
+        return df
+    except Exception as e:
+        return pd.DataFrame(columns=SUTUNLAR)
+
 def update_google_sheet(df):
     try:
-        # st.connection üzerinden aktif gspread client nesnesini doğrudan alıyoruz (secrets hatası almaz)
-        gc = conn.client
-        spreadsheet = gc.open_by_url(SHEET_URL)
+        client = get_gspread_client()
+        if not client:
+            return False
+        spreadsheet = client.open_by_url(SHEET_URL)
         worksheet = spreadsheet.get_worksheet(0) # İlk sayfa
         
-        # DataFrame'i temizle ve NaN değerleri boş string yap
         df_to_write = df.fillna("")
-        
-        # Tabloyu tamamen temizle ve yeniden yaz
         worksheet.clear()
         worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
         return True
@@ -68,18 +111,6 @@ if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
-
-def load_data():
-    try:
-        df = conn.read(spreadsheet=SHEET_URL, ttl=0)
-        for col in SUTUNLAR:
-            if col not in df.columns:
-                df[col] = None
-        df = df[SUTUNLAR]
-        df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
-        return df
-    except Exception:
-        return pd.DataFrame(columns=SUTUNLAR)
 
 # --- ÖZELLEŞTİRİLMİŞ SÜTUN SEÇMELİ MÜŞTERİ RAPORU ---
 def generate_customer_report(dataframe, filtered_customer, selected_columns):
