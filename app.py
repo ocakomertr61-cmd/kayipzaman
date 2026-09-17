@@ -28,31 +28,47 @@ DURUS_NEDENLERI = [
     "Diğer"
 ]
 
-# --- GSPREAD İLE DOĞRUDAN VE GÜVENLİ BAĞLANTI YARDIMCISI ---
+# --- ESNEK VE GÜVENLİ GSPREAD BAĞLANTI YARDIMCISI ---
 def get_gspread_client():
     try:
-        # Streamlit secrets içindeki gsheets bilgilerini alıyoruz
-        secrets_dict = dict(st.secrets["connections"]["gsheets"])
         scope = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        creds = Credentials.from_service_account_info(secrets_dict, scopes=scope)
-        client = gspread.authorize(creds)
-        return client
-    except Exception as e:
-        # Alternatif olarak doğrudan service_account bloğunu da kontrol edelim
+        
+        secrets_dict = None
+        
+        # 1. Alternatif: [connections.gsheets] var mı?
         try:
-            if "service_account" in st.secrets:
-                secrets_dict = dict(st.secrets["service_account"])
-                scope = [
-                    "https://www.googleapis.com/auth/spreadsheets",
-                    "https://www.googleapis.com/auth/drive"
-                ]
-                creds = Credentials.from_service_account_info(secrets_dict, scopes=scope)
-                return gspread.authorize(creds)
+            if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+                secrets_dict = dict(st.secrets["connections"]["gsheets"])
         except:
             pass
+            
+        # 2. Alternatif: [service_account] var mı?
+        if not secrets_dict:
+            try:
+                if "service_account" in st.secrets:
+                    secrets_dict = dict(st.secrets["service_account"])
+            except:
+                pass
+                
+        # 3. Alternatif: Doğrudan root düzeyinde mi?
+        if not secrets_dict:
+            try:
+                if "private_key" in st.secrets:
+                    secrets_dict = dict(st.secrets)
+            except:
+                pass
+                
+        if secrets_dict:
+            creds = Credentials.from_service_account_info(secrets_dict, scopes=scope)
+            return gspread.authorize(creds)
+        else:
+            st.error("⚠️ Streamlit secrets içinde Google Servis Hesabı (Service Account) bilgileri bulunamadı. Lütfen secrets ayarlarınızı kontrol edin.")
+            return None
+            
+    except Exception as e:
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
 
