@@ -70,16 +70,21 @@ def _fetch_data_from_sheet():
                 df[col] = None
         df = df[SUTUNLAR]
         
-        # Sayısal Değerleri Kesin Temizleme ve Dönüştürme
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
+        # ÇÖZÜM: Tablodan gelen 15,77 gibi stringleri veya 1577 tam sayıları doğru ondalığa (15.77) çevirme
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if num_col in df.columns:
-                # Gelen veriyi string yap, olası virgülleri noktaya çevir, noktaları koru
-                s = df[num_col].astype(str).str.strip()
-                # Eğer içinde nokta ve virgül karıştıysa düzelt
-                s = s.str.replace(',', '.', regex=False)
-                df[num_col] = pd.to_numeric(s, errors='coerce').fillna(0.0)
+                # Önce veriyi stringe çevir, boşlukları al, virgülü noktaya çevir
+                s = df[num_col].astype(str).str.strip().str.replace(',', '.', regex=False)
+                numeric_vals = pd.to_numeric(s, errors='coerce').fillna(0.0)
+                
+                # Eğer Google Sheets okurken virgülsüz tam sayı yaptıysa (örn 1577 geldiyse), doğru ondalığa çekmek için 100'e bölüyoruz
+                # (Eğer zaten ondalıklı geldiyse veya 0 ise dokunmuyoruz)
+                if num_col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)']:
+                    numeric_vals = numeric_vals.apply(lambda x: x / 100.0 if x > 100 and str(x).endswith('.0') else x)
+                    
+                df[num_col] = numeric_vals.round(2)
         
         df['Gelen Parti Miktarı'] = pd.to_numeric(df['Gelen Parti Miktarı'], errors='coerce').fillna(0).astype(int)
         
@@ -104,10 +109,10 @@ def update_google_sheet(df):
         worksheet = spreadsheet.get_worksheet(0)
         
         df_to_write = df.copy()
-        # Google Sheets'e gönderirken float değerleri doğrudan standart ondalık noktasıyla bırakıyoruz
         for col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if col in df_to_write.columns:
-                df_to_write[col] = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
+                num_series = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
+                df_to_write[col] = num_series.apply(lambda x: f"{x:.2f}".replace('.', ','))
                 
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
