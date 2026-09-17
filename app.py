@@ -72,19 +72,11 @@ def _fetch_data_from_sheet():
         
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
-        # ÇÖZÜM: Tablodan gelen 15,77 gibi stringleri veya 1577 tam sayıları doğru ondalığa (15.77) çevirme
+        # KESİN ÇÖZÜM: Tablodan gelen 15,77 gibi stringleri doğrudan 15.77 (float) yapıyoruz
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if num_col in df.columns:
-                # Önce veriyi stringe çevir, boşlukları al, virgülü noktaya çevir
                 s = df[num_col].astype(str).str.strip().str.replace(',', '.', regex=False)
-                numeric_vals = pd.to_numeric(s, errors='coerce').fillna(0.0)
-                
-                # Eğer Google Sheets okurken virgülsüz tam sayı yaptıysa (örn 1577 geldiyse), doğru ondalığa çekmek için 100'e bölüyoruz
-                # (Eğer zaten ondalıklı geldiyse veya 0 ise dokunmuyoruz)
-                if num_col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)']:
-                    numeric_vals = numeric_vals.apply(lambda x: x / 100.0 if x > 100 and str(x).endswith('.0') else x)
-                    
-                df[num_col] = numeric_vals.round(2)
+                df[num_col] = pd.to_numeric(s, errors='coerce').fillna(0.0).round(2)
         
         df['Gelen Parti Miktarı'] = pd.to_numeric(df['Gelen Parti Miktarı'], errors='coerce').fillna(0).astype(int)
         
