@@ -9,12 +9,15 @@ st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wi
 st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
 st.markdown("---")
 
+# Google Sheet URL
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1UsGlWxzRmiriAufzk14D0oiS3CyHMAjENyFhIbw9VG4/edit?pli=1&gid=0#gid=0"
+
 # Google Sheets Connection
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
     try:
-        df = conn.read(ttl=0)
+        df = conn.read(spreadsheet=SHEET_URL, ttl=0)
         return df
     except Exception:
         return pd.DataFrame(columns=[
@@ -24,7 +27,6 @@ def load_data():
             "Son Durum", "Hata Görseli Linki", "Onay Belgesi Linki"
         ])
 
-# Tam sizin istediğiniz seçimli 'Son Durum' opsiyonları
 DURUM_OPSIYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
 
 DURUS_NEDENLERI = [
@@ -62,7 +64,6 @@ with tab1:
             
         c_durum, c_bos = st.columns([1, 2])
         with c_durum:
-            # Seçimli Son Durum
             son_durum = st.selectbox("Son Durum *", DURUM_OPSIYONLARI)
             
         islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...")
@@ -103,8 +104,8 @@ with tab1:
                 mevcut_df = load_data()
                 guncel_df = pd.concat([mevcut_df, yeni_kayit], ignore_index=True)
                 
-                conn.update(data=guncel_df)
-                st.success(f" Referans {referans_no} başarıyla kaydedildi!")
+                conn.update(spreadsheet=SHEET_URL, data=guncel_df)
+                st.success(f" Referans {referans_no} başarıyla Google Sheet'e kaydedildi!")
                 st.rerun()
 
 # ---------------- TAB 2: LIST & EDIT ----------------
@@ -115,7 +116,6 @@ with tab2:
     if df.empty:
         st.info("Henüz kayıtlı bir veri bulunmuyor.")
     else:
-        # Excel / CSV İndirme Butonu
         csv_data = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="📥 Tüm Kayıtları Excel / CSV Olarak İndir",
@@ -126,7 +126,6 @@ with tab2:
         )
         st.markdown("---")
         
-        # İnteraktif Tablo (Son Durum Hücrede Seçmeli)
         edited_df = st.data_editor(
             df,
             column_config={
@@ -147,7 +146,7 @@ with tab2:
         )
         
         if st.button("🔄 Değişiklikleri ve Son Durumu Kaydet"):
-            conn.update(data=edited_df)
+            conn.update(spreadsheet=SHEET_URL, data=edited_df)
             st.success("Tablodaki güncellemeler Google Sheets'e kaydedildi!")
             st.rerun()
 
