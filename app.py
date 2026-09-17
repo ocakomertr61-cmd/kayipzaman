@@ -15,8 +15,9 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 SUTUNLAR = [
     "ID", "Tarih", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
     "Referans No", "Seri No", "Duruş Nedeni", "İşlem Açıklaması", 
-    "Miktar", "P/H", "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", 
-    "Son Durum", "Hata Görseli Linki", "Onay Belgesi Linki"
+    "Gelen Parti Miktarı", "Hata Oranı (%)", "İşlem Görecek Miktar", "P/H", 
+    "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", "Son Durum", 
+    "Hata Görseli Linki", "Onay Belgesi Linki"
 ]
 
 DURUM_OPSIYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
@@ -120,9 +121,8 @@ if st.sidebar.button("🚪 Çıkış Yap", use_container_width=True):
 st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
 st.markdown("---")
 
-# Sekme yetkilendirmesi
 if user["role"] == "admin":
-    tab1, tab2, tab3 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Toplu/Tekli Sil)", "📈 Analiz & Özet"])
+    tab1, tab2, tab3 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Özet"])
 else:
     tab2, tab3 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & Özet"])
 
@@ -132,27 +132,45 @@ if user["role"] == "admin":
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
         
         with st.form("kayip_zaman_formu", clear_on_submit=True):
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             
             with col1:
                 musteri_adi = st.text_input("Müşteri Adı *")
                 sorumlu_muhendis = st.text_input("Müşteri Sorumlu Mühendis Adı")
                 irsaliye_no = st.text_input("İrsaliye No")
-                
-            with col2:
                 referans_no = st.text_input("Referans No *")
                 seri_no = st.text_input("Seri No")
                 durus_nedeni = st.selectbox("Duruş / Zaman Kaybı Nedeni *", DURUS_NEDENLERI)
                 
-            with col3:
-                miktar = st.number_input("Miktar (Adet)", min_value=1, value=1, step=1)
+            with col2:
+                gelen_parti = st.number_input("Gelen Parti / Stok Miktarı (Adet)", min_value=1, value=1000, step=10)
+                hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.5)
+                
+                # Otomatik Hesaplanan İşlem Görecek Miktar
+                hesaplanan_islem_miktari = int(gelen_parti * (hata_orani / 100.0))
+                islem_gorecek_miktar = st.number_input("İşlem Görecek Miktar (Adet)", min_value=1, value=max(1, hesaplanan_islem_miktari), step=1)
                 ph = st.number_input("P/H (Parça / Saat)", min_value=0.1, value=100.0, step=1.0)
+                
+                st.markdown("---")
+                # HESAPLANAN ZAMAN MODU SEÇİMİ
+                zaman_modu = st.radio(
+                    "⏱️ Hesaplanan Zaman Belirleme Yöntemi:",
+                    ["🤖 Otomatik Formülle Hesapla (İşlem Miktarı / P/H)", "✍️ Manuel Zaman Gir"],
+                    horizontal=True
+                )
+                
+                auto_zaman = round(islem_gorecek_miktar / ph, 2) if ph > 0 else 0.0
+                
+                if "Manuel" in zaman_modu:
+                    hesaplanan_zaman = st.number_input("Hesaplanan Zaman (Saat) [Manuel]", min_value=0.0, value=auto_zaman, step=0.1)
+                else:
+                    hesaplanan_zaman = auto_zaman
+                    st.info(f"Formüle Göre Otomatik Hesaplanan Zaman: **{hesaplanan_zaman} Saat**")
+                    
+                st.markdown("---")
                 kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=1.0, step=0.1)
-                
-            c_durum, c_bos = st.columns([1, 2])
-            with c_durum:
                 son_durum = st.selectbox("Son Durum *", DURUM_OPSIYONLARI)
-                
+
             islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...")
             
             c_link1, c_link2 = st.columns(2)
@@ -169,12 +187,10 @@ if user["role"] == "admin":
                 else:
                     mevcut_df = load_data()
                     
-                    # Güvenli Otomatik Artan ID Hesabı
                     valid_ids = mevcut_df['ID'].dropna()
                     valid_ids = valid_ids[pd.to_numeric(valid_ids, errors='coerce').notnull()]
                     yeni_id = int(valid_ids.max()) + 1 if not valid_ids.empty else 1
                     
-                    hesaplanan_zaman = round(miktar / ph, 2) if ph > 0 else 0.0
                     bugun = datetime.now().strftime("%Y-%m-%d %H:%M")
                     
                     yeni_kayit = pd.DataFrame([{
@@ -187,7 +203,9 @@ if user["role"] == "admin":
                         "Seri No": seri_no,
                         "Duruş Nedeni": durus_nedeni,
                         "İşlem Açıklaması": islem_aciklamasi,
-                        "Miktar": miktar,
+                        "Gelen Parti Miktarı": gelen_parti,
+                        "Hata Oranı (%)": hata_orani,
+                        "İşlem Görecek Miktar": islem_gorecek_miktar,
                         "P/H": ph,
                         "Hesaplanan Zaman (Saat)": hesaplanan_zaman,
                         "Kayıp Zaman (Saat)": kayip_zaman_saat,
@@ -211,18 +229,17 @@ with tab2:
         if df.empty or df.dropna(how='all').empty:
             st.info("Henüz kayıtlı bir veri bulunmuyor.")
         else:
-            # Seçim Sütunu Ekle (En sola 'Seç' kutucuğu yerleştirilir)
             if "Seç" not in df.columns:
                 df.insert(0, "Seç", False)
             
             st.markdown("### 📝 Tablo Düzenleme & Seçerek Toplu Silme")
-            st.caption("Silmek istediğiniz satırların en solundaki **'Seç'** kutucuğunu işaretleyip aşağıdaki **'Seçili Kayıtları Sil'** butonuna tıklayabilirsiniz.")
             
             edited_df = st.data_editor(
                 df,
                 column_config={
                     "Seç": st.column_config.CheckboxColumn("Seç", default=False),
                     "ID": st.column_config.NumberColumn("ID", disabled=True),
+                    "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0, max_value=100, format="%.1f%%"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
                 },
@@ -234,7 +251,6 @@ with tab2:
             
             with c_kaydet:
                 if st.button("🔄 Tablo Değişikliklerini Kaydet", use_container_width=True):
-                    # Seç sütununu çıkararak kaydet
                     clean_df = edited_df.drop(columns=["Seç"], errors="ignore")
                     conn.update(spreadsheet=SHEET_URL, data=clean_df)
                     st.success("Tablo değişiklikleri başarıyla kaydedildi!")
@@ -249,7 +265,7 @@ with tab2:
                         silinecek_id_listesi = secilenler["ID"].tolist()
                         kalan_df = edited_df[edited_df["Seç"] == False].drop(columns=["Seç"], errors="ignore")
                         conn.update(spreadsheet=SHEET_URL, data=kalan_df)
-                        st.success(f"Seçilen {len(silinecek_id_listesi)} adet kayıt (ID'ler: {silinecek_id_listesi}) başarıyla silindi!")
+                        st.success(f"Seçilen {len(silinecek_id_listesi)} adet kayıt başarıyla silindi!")
                         st.rerun()
                         
             with c_indir:
@@ -283,18 +299,23 @@ with tab2:
                                 g_musteri = st.text_input("Müşteri Adı", value=str(satir["Müşteri Adı"] if pd.notna(satir["Müşteri Adı"]) else ""))
                                 g_muhendis = st.text_input("Sorumlu Mühendis", value=str(satir["Sorumlu Mühendis"] if pd.notna(satir["Sorumlu Mühendis"]) else ""))
                                 g_irsaliye = st.text_input("İrsaliye No", value=str(satir["İrsaliye No"] if pd.notna(satir["İrsaliye No"]) else ""))
-                            with c2:
                                 g_ref = st.text_input("Referans No", value=str(satir["Referans No"] if pd.notna(satir["Referans No"]) else ""))
                                 g_seri = st.text_input("Seri No", value=str(satir["Seri No"] if pd.notna(satir["Seri No"]) else ""))
+                            
+                            with c2:
                                 idx_neden = DURUS_NEDENLERI.index(satir["Duruş Nedeni"]) if satir["Duruş Nedeni"] in DURUS_NEDENLERI else 0
                                 g_neden = st.selectbox("Duruş Nedeni", DURUS_NEDENLERI, index=idx_neden)
-                            with c3:
-                                g_miktar = st.number_input("Miktar", value=int(satir["Miktar"]) if pd.notna(satir["Miktar"]) else 1)
-                                g_ph = st.number_input("P/H", value=float(satir["P/H"]) if pd.notna(satir["P/H"]) else 100.0)
-                                g_kayip = st.number_input("Kayıp Zaman (Saat)", value=float(satir["Kayıp Zaman (Saat)"]) if pd.notna(satir["Kayıp Zaman (Saat)"]) else 1.0)
+                                g_parti = st.number_input("Gelen Parti Miktarı", value=int(satir["Gelen Parti Miktarı"]) if pd.notna(satir["Gelen Parti Miktarı"]) else 1000)
+                                g_hata = st.number_input("Hata Oranı (%)", value=float(satir["Hata Oranı (%)"]) if pd.notna(satir["Hata Oranı (%)"]) else 10.0)
+                                g_islem_miktari = st.number_input("İşlem Görecek Miktar", value=int(satir["İşlem Görecek Miktar"]) if pd.notna(satir["İşlem Görecek Miktar"]) else 100)
                             
-                            idx_durum = DURUM_OPSIYONLARI.index(satir["Son Durum"]) if satir["Son Durum"] in DURUM_OPSIYONLARI else 0
-                            g_durum = st.selectbox("Son Durum", DURUM_OPSIYONLARI, index=idx_durum)
+                            with c3:
+                                g_ph = st.number_input("P/H", value=float(satir["P/H"]) if pd.notna(satir["P/H"]) else 100.0)
+                                g_hesaplanan = st.number_input("Hesaplanan Zaman (Saat)", value=float(satir["Hesaplanan Zaman (Saat)"]) if pd.notna(satir["Hesaplanan Zaman (Saat)"]) else 1.0)
+                                g_kayip = st.number_input("Kayıp Zaman (Saat)", value=float(satir["Kayıp Zaman (Saat)"]) if pd.notna(satir["Kayıp Zaman (Saat)"]) else 1.0)
+                                idx_durum = DURUM_OPSIYONLARI.index(satir["Son Durum"]) if satir["Son Durum"] in DURUM_OPSIYONLARI else 0
+                                g_durum = st.selectbox("Son Durum", DURUM_OPSIYONLARI, index=idx_durum)
+                            
                             g_aciklama = st.text_area("İşlem Açıklaması", value=str(satir["İşlem Açıklaması"] if pd.notna(satir["İşlem Açıklaması"]) else ""))
                             
                             col_update, col_delete = st.columns(2)
@@ -311,9 +332,11 @@ with tab2:
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Referans No"] = g_ref
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Seri No"] = g_seri
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Duruş Nedeni"] = g_neden
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Miktar"] = g_miktar
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Gelen Parti Miktarı"] = g_parti
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Hata Oranı (%)"] = g_hata
+                                clean_df.loc[clean_df['ID'] == secilen_id, "İşlem Görecek Miktar"] = g_islem_miktari
                                 clean_df.loc[clean_df['ID'] == secilen_id, "P/H"] = g_ph
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Hesaplanan Zaman (Saat)"] = round(g_miktar / g_ph, 2) if g_ph > 0 else 0.0
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Hesaplanan Zaman (Saat)"] = g_hesaplanan
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = g_kayip
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Son Durum"] = g_durum
                                 clean_df.loc[clean_df['ID'] == secilen_id, "İşlem Açıklaması"] = g_aciklama
