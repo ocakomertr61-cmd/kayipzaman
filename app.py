@@ -4,7 +4,7 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
-# Page Configuration
+# Sayfa Yapılandırması
 st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wide", page_icon="⏱️")
 
 # Google Sheet URL
@@ -35,18 +35,16 @@ DONEM_LISTESI = [
     "Temmuz 2027", "Ağustos 2027", "Eylül 2027", "Ekim 2027", "Kasım 2027", "Aralık 2027"
 ]
 
-# --- STREAMLIT SECRETS İLE GSPREAD BAĞLANTISI ---
+# --- GSPREAD BAĞLANTISI ---
 def get_gspread_client():
     try:
         scope = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        
         credentials_dict = dict(st.secrets["gcp_service_account"])
         creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
         return gspread.authorize(creds)
-            
     except Exception as e:
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
@@ -104,7 +102,6 @@ def update_google_sheet(df):
         worksheet.clear()
         worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
         
-        # Veri güncellendiğinde cache'i temizle ki yeni veriler anında yansısın
         st.cache_data.clear()
         return True
     except Exception as e:
@@ -131,7 +128,7 @@ if "logged_in" not in st.session_state:
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
 
-# --- ÖZELLEŞTİRİLMİŞ SÜTUN SEÇMELİ MÜŞTERİ RAPORU ---
+# --- RAPOR OLUŞTURUCU HTML ---
 def generate_customer_report(dataframe, filtered_customer, filtered_donem, selected_columns):
     filtered_df = dataframe[selected_columns] if selected_columns else dataframe
     
@@ -240,7 +237,6 @@ if st.sidebar.button("🚪 Çıkış Yap", use_container_width=True):
 st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
 st.markdown("---")
 
-# Global Veri Yükleme (Cache Destekli)
 df = load_data()
 
 if user["role"] == "admin":
@@ -504,7 +500,6 @@ with tab3:
     df = load_data()
     
     if not df.empty and not df.dropna(how='all').empty:
-        # --- ÜST FİLTRE VE DÖNEM BAZLI ÖZET BANNER ---
         st.markdown("### 🔍 Dönem ve Müşteri Filtreleme")
         col_f_ust1, col_f_ust2 = st.columns(2)
         
@@ -521,7 +516,6 @@ with tab3:
             analiz_musteri_listesi = ["Tüm Müşteriler"] + sorted(df['Müşteri Adı'].dropna().unique().tolist())
             secilen_analiz_musteri = st.selectbox("Müşteri Seçin:", options=analiz_musteri_listesi, key="analiz_musteri_sec")
             
-        # Filtreleme Uygula
         filtrelenmis_df = df[df['Dönem (Ay/Yıl)'] == secilen_analiz_donemi]
         if secilen_analiz_musteri != "Tüm Müşteriler":
             filtrelenmis_df = filtrelenmis_df[filtrelenmis_df['Müşteri Adı'] == secilen_analiz_musteri]
@@ -529,7 +523,6 @@ with tab3:
         toplam_kayip_sure = pd.to_numeric(filtrelenmis_df['Kayıp Zaman (Saat)'], errors='coerce').sum()
         gosterilecek_musteri_adi = secilen_analiz_musteri if secilen_analiz_musteri != "Tüm Müşteriler" else "Tüm Müşteriler"
         
-        # --- ÖZET BANNER ---
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #1f77b4, #2ca02c); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <h3 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">{secilen_analiz_donemi} &mdash; {toplam_kayip_sure:.1f} Saat &mdash; {gosterilecek_musteri_adi}</h3>
@@ -560,7 +553,7 @@ with tab3:
             html_report = generate_customer_report(rapor_hedef_df, rapor_musteri_secim, secilen_analiz_donemi, secilen_sutunlar)
             
             st.download_button(
-                label=f"📥 {secilen_analiz_donemi} Dönemi Raporunu İndir (HTML / Tarayıcda Aç)",
+                label=f"📥 {secilen_analiz_donemi} Dönemi Raporunu İndir (HTML / Tarayıcıda Aç)",
                 data=html_report,
                 file_name=f"Rapor_{rapor_musteri_secim}_{secilen_analiz_donemi.replace(' ', '_')}.html",
                 mime="text/html",
@@ -573,8 +566,12 @@ with tab3:
         m1, m2, m3, m4 = st.columns(4)
         m1.metric(f"Toplam Kayıt ({secilen_analiz_donemi})", len(filtrelenmis_df))
         m2.metric("Toplam Kayıp Zaman", f"{toplam_kayip_sure:.1f} Saat")
-        m3.metric("Onaylanan Süre", f"{pd.to_numeric(filtrelenmis_df[filtrelenmis_df['Son Durum'] == 'Onay Geldi']['Kayıp Zaman (Saat)'], errors='coerce').sum():.1f} Saat")
-        m4.metric("Bekleyen Süre", f"{pd.to_numeric(filtrelenmis_df[filtrelenmis_df['Son Durum'] == 'Mail Atıldı']['Kayıp Zaman (Saat)'], errors='coerce'].sum():.1f} Saat")
+        
+        onaylanan_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Onay Geldi', 'Kayıp Zaman (Saat)'], errors='coerce').sum()
+        m3.metric("Onaylanan Süre", f"{onaylanan_sure:.1f} Saat")
+        
+        bekleyen_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Mail Atıldı', 'Kayıp Zaman (Saat)'], errors='coerce').sum()
+        m4.metric("Bekleyen Süre", f"{bekleyen_sure:.1f} Saat")
         
         st.markdown("---")
         c1, c2 = st.columns(2)
@@ -584,7 +581,7 @@ with tab3:
                 grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adı')['Kayıp Zaman (Saat)'].sum()
                 st.bar_chart(grafik_veri_1)
             else:
-                st.info("Bu dönemde veri bulunbuyor.")
+                st.info("Bu dönemde veri bulunmuyor.")
         with c2:
             st.write(f"### {secilen_analiz_donemi} - Duruş Nedenlerine Göre Dağılım")
             if not filtrelenmis_df.empty:
