@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+import plotly.express as px
 
 # Sayfa Yapılandırması
 st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wide", page_icon="⏱️")
@@ -375,7 +376,6 @@ with tab2:
                     "Kayıp Zaman (Saat)": st.column_config.NumberColumn("Kayıp Zaman (Saat)", format="%.2f"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
-                    # LİNK KOLONLARINI TIKLANABİLİR YAPMA:
                     "Etiket Görseli Linki": st.column_config.LinkColumn("Etiket Görseli", display_text="🔗 Etiket Linki"),
                     "Hata Görseli Linki": st.column_config.LinkColumn("Hata Görseli", display_text="🔗 Hata Linki"),
                     "Onay Belgesi Linki": st.column_config.LinkColumn("Onay Belgesi", display_text="🔗 Onay Linki"),
@@ -428,7 +428,6 @@ with tab2:
                 if secilen_id:
                     satir = df[df['ID'] == secilen_id].iloc[0]
                     
-                    # --- DOKÜMAN HIZLI ERİŞİM & ÖN İZLEME PANELİ ---
                     st.markdown(f"**📂 ID #{secilen_id} &mdash; {satir['Müşteri Adı']} ({satir['Referans No']}) Doküman Ön İzlemesi:**")
                     l_et = str(satir.get("Etiket Görseli Linki", ""))
                     l_hat = str(satir.get("Hata Görseli Linki", ""))
@@ -559,7 +558,6 @@ with tab3:
         if secilen_analiz_musteri != "Tüm Müşteriler":
             filtrelenmis_df = filtrelenmis_df[filtrelenmis_df['Müşteri Adı'] == secilen_analiz_musteri]
             
-        # Toplam Hesaplanan Zaman
         toplam_hesaplanan_sure = pd.to_numeric(filtrelenmis_df['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         gosterilecek_musteri_adi = secilen_analiz_musteri if secilen_analiz_musteri != "Tüm Müşteriler" else "Tüm Müşteriler"
         
@@ -615,20 +613,85 @@ with tab3:
         m4.metric("Bekleyen Süre", f"{bekleyen_sure:.2f} Saat")
         
         st.markdown("---")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.write(f"### {secilen_analiz_donemi} - Müşteri Bazlı Hesaplanan Zamanlar")
-            if not filtrelenmis_df.empty:
-                grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum()
-                st.bar_chart(grafik_veri_1)
-            else:
-                st.info("Bu dönemde veri bulunmuyor.")
-        with c2:
-            st.write(f"### {secilen_analiz_donemi} - Duruş Nedenlerine Göre Dağılım")
-            if not filtrelenmis_df.empty:
-                grafik_veri_2 = filtrelenmis_df.groupby('Duruş Nedeni')['Hesaplanan Zaman (Saat)'].sum()
-                st.bar_chart(grafik_veri_2)
-            else:
-                st.info("Bu dönemde veri bulunmuyor.")
+        st.write("### 📊 Görsel Analiz Panosu & Dağılımlar")
+        
+        if not filtrelenmis_df.empty:
+            c_graf1, c_graf2 = st.columns(2)
+            
+            with c_graf1:
+                st.markdown("**🏢 Müşteri Bazlı Hesaplanan Zaman Dağılımı**")
+                g_data_musteri = filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum().reset_index()
+                if not g_data_musteri.empty:
+                    fig_musteri = px.bar(
+                        g_data_musteri, 
+                        x='Müşteri Adı', 
+                        y='Hesaplanan Zaman (Saat)', 
+                        text_auto='.2f',
+                        color='Müşteri Adı',
+                        color_discrete_sequence=px.colors.qualitative.Prism
+                    )
+                    fig_musteri.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20), height=320)
+                    st.plotly_chart(fig_musteri, use_container_width=True)
+                else:
+                    st.info("Veri bulunmuyor.")
+                    
+            with c_graf2:
+                st.markdown("**⚙️ Duruş Nedenlerine Göre Zaman Kayıpları**")
+                g_data_neden = filtrelenmis_df.groupby('Duruş Nedeni')['Hesaplanan Zaman (Saat)'].sum().reset_index()
+                if not g_data_neden.empty:
+                    # Pareto tarzı yatay çubuk grafik ile en büyük arıza/neden en üstte görünür
+                    g_data_neden = g_data_neden.sort_values(by='Hesaplanan Zaman (Saat)', ascending=True)
+                    fig_neden = px.bar(
+                        g_data_neden, 
+                        x='Hesaplanan Zaman (Saat)', 
+                        y='Duruş Nedeni', 
+                        orientation='h',
+                        text_auto='.2f',
+                        color='Duruş Nedeni',
+                        color_discrete_sequence=px.colors.qualitative.Safe
+                    )
+                    fig_neden.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20), height=320)
+                    st.plotly_chart(fig_neden, use_container_width=True)
+                else:
+                    st.info("Veri bulunmuyor.")
+            
+            # --- İKİNCİ SATIR GRAFİK: DURUM DAĞILIMI (PASTA GRAFİK) ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            c_graf3, c_graf4 = st.columns(2)
+            
+            with c_graf3:
+                st.markdown("**📌 Son Durum Dağılımı (Onay / Bekleyen / Red vb.)**")
+                g_data_durum = filtrelenmis_df.groupby('Son Durum')['Hesaplanan Zaman (Saat)'].sum().reset_index()
+                if not g_data_durum.empty:
+                    fig_durum = px.pie(
+                        g_data_durum, 
+                        names='Son Durum', 
+                        values='Hesaplanan Zaman (Saat)', 
+                        hole=0.4,
+                        color_discrete_sequence=px.colors.sequential.Tealgrn
+                    )
+                    fig_durum.update_layout(margin=dict(t=20, b=20, l=20, r=20), height=320)
+                    st.plotly_chart(fig_durum, use_container_width=True)
+                else:
+                    st.info("Veri bulunmuyor.")
+                    
+            with c_graf4:
+                st.markdown("**👷 Sorumlu Mühendis Bazlı İş Yükü Dağılımı**")
+                g_data_muh = filtrelenmis_df.groupby('Sorumlu Mühendis')['Hesaplanan Zaman (Saat)'].sum().reset_index()
+                if not g_data_muh.empty and g_data_muh['Sorumlu Mühendis'].sum() != "":
+                    fig_muh = px.bar(
+                        g_data_muh,
+                        x='Sorumlu Mühendis',
+                        y='Hesaplanan Zaman (Saat)',
+                        text_auto='.2f',
+                        color='Sorumlu Mühendis',
+                        color_discrete_sequence=px.colors.qualitative.Bold
+                    )
+                    fig_muh.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20), height=320)
+                    st.plotly_chart(fig_muh, use_container_width=True)
+                else:
+                    st.info("Mühendis bilgisi girilmiş kayıt bulunmuyor.")
+        else:
+            st.info("Bu dönemde analiz edilecek veri bulunmuyor.")
     else:
         st.info("Henüz analiz edilecek veri bulunmuyor.")
