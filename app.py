@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
-import gspread
 
 # Page Configuration
 st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wide", page_icon="⏱️")
@@ -34,8 +33,8 @@ DURUS_NEDENLERI = [
 # --- GSPREAD İLE GÜVENLİ GOOGLE SHEETS YAZMA YARDIMCISI ---
 def update_google_sheet(df):
     try:
-        # Streamlit secrets üzerinden gspread kimlik doğrulaması
-        gc = gspread.service_account_from_dict(st.secrets["connections"]["gsheets"])
+        # st.connection üzerinden aktif gspread client nesnesini doğrudan alıyoruz (secrets hatası almaz)
+        gc = conn.client
         spreadsheet = gc.open_by_url(SHEET_URL)
         worksheet = spreadsheet.get_worksheet(0) # İlk sayfa
         
