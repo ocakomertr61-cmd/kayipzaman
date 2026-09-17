@@ -66,9 +66,22 @@ def load_data():
             if col not in df.columns:
                 df[col] = None
         df = df[SUTUNLAR]
+        
+        # Tip Dönüşümleri (Stabilite için kritik)
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
+        df['Kayıp Zaman (Saat)'] = pd.to_numeric(df['Kayıp Zaman (Saat)'], errors='coerce').fillna(0.0)
+        df['Hesaplanan Zaman (Saat)'] = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').fillna(0.0)
+        df['Gelen Parti Miktarı'] = pd.to_numeric(df['Gelen Parti Miktarı'], errors='coerce').fillna(0)
+        df['Hata Oranı (%)'] = pd.to_numeric(df['Hata Oranı (%)'], errors='coerce').fillna(0.0)
+        df['P/H'] = pd.to_numeric(df['P/H'], errors='coerce').fillna(100.0)
+        
+        if "Dönem (Ay/Yıl)" in df.columns:
+            df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].astype(str).str.strip()
+            df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].replace(["nan", "None", ""], "Eylül 2026")
+            
         return df
     except Exception as e:
+        st.error(f"Veri yükleme hatası: {e}")
         return pd.DataFrame(columns=SUTUNLAR)
 
 def update_google_sheet(df):
@@ -211,10 +224,8 @@ if st.sidebar.button("🚪 Çıkış Yap", use_container_width=True):
 st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
 st.markdown("---")
 
-# Global Veri Yükleme ve Eksik Dönem Doldurma Kontrolü
+# Global Veri Yükleme
 df = load_data()
-if not df.empty and "Dönem (Ay/Yıl)" in df.columns:
-    df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].fillna("Eylül 2026")
 
 if user["role"] == "admin":
     tab1, tab2, tab3 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Rapor"])
@@ -228,7 +239,7 @@ if user["role"] == "admin":
         
         col_f1, col_f2 = st.columns(2)
         with col_f1:
-            secilen_donem_form = st.selectbox("Dönem Seçin (Ay / Yıl) *", options=DONEM_LISTESI, index=8, key="f_donem") # Eylül 2026 varsayılan index=8
+            secilen_donem_form = st.selectbox("Dönem Seçin (Ay / Yıl) *", options=DONEM_LISTESI, index=8, key="f_donem")
             musteri_adi = st.text_input("Müşteri Adı *", key="f_musteri")
             sorumlu_muhendis = st.text_input("Müşteri Sorumlu Mühendis Adı", key="f_muhendis")
             irsaliye_no = st.text_input("İrsaliye No", key="f_irsaliye")
@@ -321,8 +332,6 @@ if user["role"] == "admin":
 # ---------------- TAB 2: YÖNETİM ----------------
 with tab2:
     df = load_data()
-    if not df.empty and "Dönem (Ay/Yıl)" in df.columns:
-        df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].fillna("Eylül 2026")
         
     if user["role"] == "admin":
         st.subheader("📊 Kayıt Yönetimi (Düzenle & Toplu/Tekli Sil)")
@@ -339,7 +348,7 @@ with tab2:
                     "Seç": st.column_config.CheckboxColumn("Seç", default=False),
                     "ID": st.column_config.NumberColumn("ID", disabled=True),
                     "Dönem (Ay/Yıl)": st.column_config.SelectboxColumn("Dönem (Ay/Yıl)", options=DONEM_LISTESI, required=True),
-                    "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0, max_value=100, format="%.1f%%"),
+                    "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0.0, max_value=100.0, format="%.1f%%"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
                 },
@@ -386,7 +395,7 @@ with tab2:
             with col_bireysel:
                 st.subheader("🎯 Bireysel Satır Düzenleme / Tekil Silme")
                 id_listesi = df['ID'].dropna().astype(int).unique().tolist()
-                secilen_id = st.selectbox("ID Numarası Seçin:", options=id_listesi)
+                secilen_id = st.selectbox("ID Numarası Seçin:", options=id_listesi) if id_listesi else None
                 
                 if secilen_id:
                     satir = df[df['ID'] == secilen_id].iloc[0]
@@ -395,8 +404,8 @@ with tab2:
                         with st.form(f"form_guncelle_{secilen_id}"):
                             c1, c2, c3 = st.columns(3)
                             with c1:
-                                mevcut_satir_donem = satir["Dönem (Ay/Yıl)"] if pd.notna(satir["Dönem (Ay/Yıl)"]) and satir["Dönem (Ay/Yıl)"] in DONEM_LISTESI else "Eylül 2026"
-                                idx_donem = DONEM_LISTESI.index(mevcut_satir_donem)
+                                mevcut_satir_donem = str(satir["Dönem (Ay/Yıl)"]).strip()
+                                idx_donem = DONEM_LISTESI.index(mevcut_satir_donem) if mevcut_satir_donem in DONEM_LISTESI else 8
                                 g_donem = st.selectbox("Dönem (Ay/Yıl)", DONEM_LISTESI, index=idx_donem)
                                 
                                 g_musteri = st.text_input("Müşteri Adı", value=str(satir["Müşteri Adı"] if pd.notna(satir["Müşteri Adı"]) else ""))
@@ -477,24 +486,24 @@ with tab2:
 with tab3:
     st.subheader("Analiz Panosu & Dönemsel Müşteri Raporu")
     df = load_data()
-    if not df.empty and "Dönem (Ay/Yıl)" in df.columns:
-        df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].fillna("Eylül 2026")
     
     if not df.empty and not df.dropna(how='all').empty:
-        
         # --- ÜST FİLTRE VE DÖNEM BAZLI ÖZET BANNER ---
         st.markdown("### 🔍 Dönem ve Müşteri Filtreleme")
         col_f_ust1, col_f_ust2 = st.columns(2)
         
+        mevcut_donemler = sorted(df['Dönem (Ay/Yıl)'].dropna().unique().tolist())
+        if not mevcut_donemler:
+            mevcut_donemler = ["Eylül 2026"]
+            
+        default_idx = mevcut_donemler.index("Eylül 2026") if "Eylül 2026" in mevcut_donemler else 0
+        
         with col_f_ust1:
-            mevcut_donemler = sorted(df['Dönem (Ay/Yıl)'].dropna().unique().tolist())
-            if "Eylül 2026" not in mevcut_donemler:
-                mevcut_donemler.insert(0, "Eylül 2026")
-            secilen_analiz_donemi = st.selectbox("Dönem Seçin:", options=mevcut_donemler, index=mevcut_donemler.index("Eylül 2026") if "Eylül 2026" in mevcut_donemler else 0)
+            secilen_analiz_donemi = st.selectbox("Dönem Seçin:", options=mevcut_donemler, index=default_idx, key="analiz_donem_sec")
             
         with col_f_ust2:
             analiz_musteri_listesi = ["Tüm Müşteriler"] + sorted(df['Müşteri Adı'].dropna().unique().tolist())
-            secilen_analiz_musteri = st.selectbox("Müşteri Seçin:", options=analiz_musteri_listesi)
+            secilen_analiz_musteri = st.selectbox("Müşteri Seçin:", options=analiz_musteri_listesi, key="analiz_musteri_sec")
             
         # Filtreleme Uygula
         filtrelenmis_df = df[df['Dönem (Ay/Yıl)'] == secilen_analiz_donemi]
@@ -504,7 +513,7 @@ with tab3:
         toplam_kayip_sure = pd.to_numeric(filtrelenmis_df['Kayıp Zaman (Saat)'], errors='coerce').sum()
         gosterilecek_musteri_adi = secilen_analiz_musteri if secilen_analiz_musteri != "Tüm Müşteriler" else "Tüm Müşteriler"
         
-        # --- İSTEDİĞİN ÖZET BANNER GÖRÜNÜMÜ ---
+        # --- ÖZET BANNER ---
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #1f77b4, #2ca02c); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <h3 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">{secilen_analiz_donemi} &mdash; {toplam_kayip_sure:.1f} Saat &mdash; {gosterilecek_musteri_adi}</h3>
@@ -556,13 +565,15 @@ with tab3:
         with c1:
             st.write(f"### {secilen_analiz_donemi} - Müşteri Bazlı Kayıp Zamanlar")
             if not filtrelenmis_df.empty:
-                st.bar_chart(filtrelenmis_df.groupby('Müşteri Adı')['Kayıp Zaman (Saat)'].sum())
+                grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adı')['Kayıp Zaman (Saat)'].sum()
+                st.bar_chart(grafik_veri_1)
             else:
                 st.info("Bu dönemde veri bulunmuyor.")
         with c2:
             st.write(f"### {secilen_analiz_donemi} - Duruş Nedenlerine Göre Dağılım")
             if not filtrelenmis_df.empty:
-                st.bar_chart(filtrelenmis_df.groupby('Duruş Nedeni')['Kayıp Zaman (Saat)'].sum())
+                grafik_veri_2 = filtrelenmis_df.groupby('Duruş Nedeni')['Kayıp Zaman (Saat)'].sum()
+                st.bar_chart(grafik_veri_2)
             else:
                 st.info("Bu dönemde veri bulunmuyor.")
     else:
