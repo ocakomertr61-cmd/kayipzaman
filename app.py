@@ -15,7 +15,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 SUTUNLAR = [
     "ID", "Tarih", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
     "Referans No", "Seri No", "Duruş Nedeni", "İşlem Açıklaması", 
-    "Gelen Parti Miktarı", "Hata Oranı (%)", "İşlem Görecek Miktar", "P/H", 
+    "Gelen Parti Miktarı", "Hata Oranı (%)", "P/H", 
     "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", "Son Durum", 
     "Hata Görseli Linki", "Onay Belgesi Linki"
 ]
@@ -144,35 +144,31 @@ if user["role"] == "admin":
         with col2:
             gelen_parti = st.number_input("Gelen Parti / Stok Miktarı (Adet)", min_value=1, value=1000, step=10, key="f_parti")
             hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.5, key="f_hata")
-            
-            # Anlık dinamik hesaplama (Rerun ile canlı güncellenir)
-            otomatik_islem_miktari = int(gelen_parti * (hata_orani / 100.0))
-            
-            islem_gorecek_miktar = st.number_input(
-                "İşlem Görecek Miktar (Adet)", 
-                min_value=1, 
-                value=max(1, otomatik_islem_miktari), 
-                step=1,
-                key="f_islem_miktari"
-            )
             ph = st.number_input("P/H (Parça / Saat)", min_value=0.1, value=100.0, step=1.0, key="f_ph")
             
+            # Canlı Arka Plan Formülü: (Gelen Parti * (Hata Oranı / 100)) / P/H
+            canli_islem_adet = gelen_parti * (hata_orani / 100.0)
+            canli_hesaplanan_saat = round(canli_islem_adet / ph, 2) if ph > 0 else 0.0
+            
             st.markdown("---")
-            # DİNAMİK HESAPLANAN SAAT MODU
             zaman_modu = st.radio(
-                "⏱️ Hesaplanan Zaman Belirleme Yöntemi:",
-                ["🤖 Otomatik Formülle Hesapla (İşlem Miktarı / P/H)", "✍️ Manuel Zaman Gir"],
+                "Mod Seçimi:",
+                ["🤖 Otomatik Formülle Hesapla", "✍️ Manuel Zaman Gir"],
                 horizontal=True,
                 key="f_zaman_modu"
             )
             
-            otomatik_hesaplanan_zaman = round(islem_gorecek_miktar / ph, 2) if ph > 0 else 0.0
-            
             if "Manuel" in zaman_modu:
-                hesaplanan_zaman = st.number_input("Hesaplanan Zaman (Saat) [Manuel]", min_value=0.0, value=otomatik_hesaplanan_zaman, step=0.1, key="f_hesaplanan_manuel")
+                hesaplanan_zaman = st.number_input(
+                    "⏱️ Hesaplanan Zaman (Saat) [Manuel Giriş]", 
+                    min_value=0.0, 
+                    value=canli_hesaplanan_saat, 
+                    step=0.1, 
+                    key="f_hesaplanan_manuel"
+                )
             else:
-                hesaplanan_zaman = otomatik_hesaplanan_zaman
-                st.success(f"🧮 Otomatik Hesaplanan Zaman: **{hesaplanan_zaman} Saat** (`{islem_gorecek_miktar} Adet / {ph} P/H`)")
+                hesaplanan_zaman = canli_hesaplanan_saat
+                st.success(f"⏱️ **Hesaplanan Zaman: {hesaplanan_zaman} Saat**  \n*(Detay: {int(canli_islem_adet)} Adet Hatalı Parça / {ph} P/H)*")
                 
             st.markdown("---")
             kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=1.0, step=0.1, key="f_kayip")
@@ -211,7 +207,6 @@ if user["role"] == "admin":
                     "İşlem Açıklaması": islem_aciklamasi,
                     "Gelen Parti Miktarı": gelen_parti,
                     "Hata Oranı (%)": hata_orani,
-                    "İşlem Görecek Miktar": islem_gorecek_miktar,
                     "P/H": ph,
                     "Hesaplanan Zaman (Saat)": hesaplanan_zaman,
                     "Kayıp Zaman (Saat)": kayip_zaman_saat,
@@ -222,7 +217,7 @@ if user["role"] == "admin":
                 
                 guncel_df = pd.concat([mevcut_df, yeni_kayit], ignore_index=True)
                 conn.update(spreadsheet=SHEET_URL, data=guncel_df)
-                st.success(f"ID #{yeni_id} (Referans: {referans_no}) başarıyla kaydedildi! (Hesaplanan Zaman: {hesaplanan_zaman} Saat)")
+                st.success(f"ID #{yeni_id} (Referans: {referans_no}) başarıyla kaydedildi! Tabloya Yazılan Saat: {hesaplanan_zaman} Saat")
                 st.rerun()
 
 # ---------------- TAB 2: GÖRÜNTÜLEME VE YÖNETİM ----------------
@@ -313,10 +308,9 @@ with tab2:
                                 g_neden = st.selectbox("Duruş Nedeni", DURUS_NEDENLERI, index=idx_neden)
                                 g_parti = st.number_input("Gelen Parti Miktarı", value=int(satir["Gelen Parti Miktarı"]) if pd.notna(satir["Gelen Parti Miktarı"]) else 1000)
                                 g_hata = st.number_input("Hata Oranı (%)", value=float(satir["Hata Oranı (%)"]) if pd.notna(satir["Hata Oranı (%)"]) else 10.0)
-                                g_islem_miktari = st.number_input("İşlem Görecek Miktar", value=int(satir["İşlem Görecek Miktar"]) if pd.notna(satir["İşlem Görecek Miktar"]) else 100)
+                                g_ph = st.number_input("P/H", value=float(satir["P/H"]) if pd.notna(satir["P/H"]) else 100.0)
                             
                             with c3:
-                                g_ph = st.number_input("P/H", value=float(satir["P/H"]) if pd.notna(satir["P/H"]) else 100.0)
                                 g_hesaplanan = st.number_input("Hesaplanan Zaman (Saat)", value=float(satir["Hesaplanan Zaman (Saat)"]) if pd.notna(satir["Hesaplanan Zaman (Saat)"]) else 1.0)
                                 g_kayip = st.number_input("Kayıp Zaman (Saat)", value=float(satir["Kayıp Zaman (Saat)"]) if pd.notna(satir["Kayıp Zaman (Saat)"]) else 1.0)
                                 idx_durum = DURUM_OPSIYONLARI.index(satir["Son Durum"]) if satir["Son Durum"] in DURUM_OPSIYONLARI else 0
@@ -340,7 +334,6 @@ with tab2:
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Duruş Nedeni"] = g_neden
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Gelen Parti Miktarı"] = g_parti
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Hata Oranı (%)"] = g_hata
-                                clean_df.loc[clean_df['ID'] == secilen_id, "İşlem Görecek Miktar"] = g_islem_miktari
                                 clean_df.loc[clean_df['ID'] == secilen_id, "P/H"] = g_ph
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Hesaplanan Zaman (Saat)"] = g_hesaplanan
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = g_kayip
