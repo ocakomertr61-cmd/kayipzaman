@@ -72,7 +72,7 @@ def _fetch_data_from_sheet():
         
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
-        # KESİN NET ÇÖZÜM: Tablodan okurken virgülü/noktayı temizle ve 100'e bölerek doğru ondalığı yakala
+        # Ondalıklı sayıların doğru okunması
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if num_col in df.columns:
                 s = df[num_col].astype(str).str.strip().str.replace(',', '', regex=False).str.replace('.', '', regex=False)
@@ -143,6 +143,7 @@ def generate_customer_report(dataframe, filtered_customer, filtered_donem, selec
     
     toplam_kayit = len(dataframe)
     toplam_hesaplanan = pd.to_numeric(dataframe['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
+    # Onaylanan süre: Son Durumu 'Onay Geldi' olanların hesaplanan zaman toplamı
     onaylanan = pd.to_numeric(dataframe[dataframe['Son Durum'] == "Onay Geldi"]['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
     
     html_content = f"""
@@ -581,9 +582,11 @@ with tab3:
         m1.metric(f"Toplam Kayıt ({secilen_analiz_donemi})", len(filtrelenmis_df))
         m2.metric("Toplam Hesaplanan Zaman", f"{toplam_hesaplanan_sure:.2f} Saat")
         
+        # Onaylanan Süre: Son durumu 'Onay Geldi' olanların Hesaplanan Zaman sütununun toplamı
         onaylanan_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         m3.metric("Onaylanan Süre", f"{onaylanan_sure:.2f} Saat")
         
+        # Bekleyen Süre: Son durumu 'Mail Atıldı' olanların Hesaplanan Zaman sütununun toplamı
         bekleyen_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Mail Atıldı', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         m4.metric("Bekleyen Süre", f"{bekleyen_sure:.2f} Saat")
         
