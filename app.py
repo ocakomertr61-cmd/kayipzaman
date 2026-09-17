@@ -70,18 +70,16 @@ def _fetch_data_from_sheet():
                 df[col] = None
         df = df[SUTUNLAR]
         
-        # Sayısal Değerleri Güvenli Dönüştürme (Virgülü noktaya çevir)
+        # Sayısal Değerleri Kesin Temizleme ve Dönüştürme
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if num_col in df.columns:
-                df[num_col] = (
-                    df[num_col]
-                    .astype(str)
-                    .str.replace('.', '', regex=False)  # Tablodan gelen binlik noktalarını temizle
-                    .str.replace(',', '.', regex=False)  # Virgülleri ondalık noktaya çevir
-                )
-                df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
+                # Gelen veriyi string yap, olası virgülleri noktaya çevir, noktaları koru
+                s = df[num_col].astype(str).str.strip()
+                # Eğer içinde nokta ve virgül karıştıysa düzelt
+                s = s.str.replace(',', '.', regex=False)
+                df[num_col] = pd.to_numeric(s, errors='coerce').fillna(0.0)
         
         df['Gelen Parti Miktarı'] = pd.to_numeric(df['Gelen Parti Miktarı'], errors='coerce').fillna(0).astype(int)
         
@@ -106,11 +104,10 @@ def update_google_sheet(df):
         worksheet = spreadsheet.get_worksheet(0)
         
         df_to_write = df.copy()
-        # Google Sheets'e kaydederken ondalık sayıları virgüllü formata (26,92) çeviriyoruz ki tablo binlik sanmasın
+        # Google Sheets'e gönderirken float değerleri doğrudan standart ondalık noktasıyla bırakıyoruz
         for col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if col in df_to_write.columns:
-                numeric_series = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
-                df_to_write[col] = numeric_series.apply(lambda x: str(x).replace('.', ','))
+                df_to_write[col] = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
                 
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
