@@ -62,8 +62,10 @@ def load_data():
     except Exception:
         return pd.DataFrame(columns=SUTUNLAR)
 
-# --- PROFESYONEL MÜŞTERİ RAPORU OLUŞTURMA (PDF/YAZDIRMA UYUMLU) ---
-def generate_customer_report(dataframe, filtered_customer):
+# --- ÖZELLEŞTİRİLMİŞ SÜTUN SEÇMELİ MÜŞTERİ RAPORU (PDF/YAZDIRMA UYUMLU) ---
+def generate_customer_report(dataframe, filtered_customer, selected_columns):
+    filtered_df = dataframe[selected_columns] if selected_columns else dataframe
+    
     toplam_kayit = len(dataframe)
     toplam_kayip = pd.to_numeric(dataframe['Kayıp Zaman (Saat)'], errors='coerce').sum()
     onaylanan = pd.to_numeric(dataframe[dataframe['Son Durum'] == "Onay Geldi"]['Kayıp Zaman (Saat)'], errors='coerce').sum()
@@ -96,7 +98,7 @@ def generate_customer_report(dataframe, filtered_customer):
             <p><strong>Raporlanan Müşteri / Kriter:</strong> {filtered_customer}</p>
             <p><strong>Toplam Kayıt:</strong> {toplam_kayit} Adet &nbsp;|&nbsp; <strong>Toplam Kayıp Zaman:</strong> {toplam_kayip:.1f} Saat &nbsp;|&nbsp; <strong>Onaylanan Süre:</strong> {onaylanan:.1f} Saat</p>
         </div>
-        {dataframe.to_html(index=False, escape=False)}
+        {filtered_df.to_html(index=False, escape=False)}
         <div class="footer">
             <p>Bu rapor Müşteri Kayıp Zaman & Fatura Takip Sistemi üzerinden otomatik olarak üretilmiştir.</p>
         </div>
@@ -416,22 +418,37 @@ with tab3:
     df = load_data()
     
     if not df.empty and not df.dropna(how='all').empty:
-        st.markdown("### 📄 Profesyonel Müşteri Raporu İndir")
-        musteri_listesi = ["Tüm Müşteriler"] + df['Müşteri Adı'].dropna().unique().tolist()
-        secilen_musteri = st.selectbox("Raporlanacak Müşteriyi Seçin:", options=musteri_listesi)
+        st.markdown("### 📄 Özelleştirilmiş Müşteri Raporu İndir")
+        
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+            musteri_listesi = ["Tüm Müşteriler"] + df['Müşteri Adı'].dropna().unique().tolist()
+            secilen_musteri = st.selectbox("Raporlanacak Müşteriyi Seçin:", options=musteri_listesi)
+            
+        with col_r2:
+            varsayilan_sutunlar = [c for c in ["Tarih", "Müşteri Adı", "Referans No", "Duruş Nedeni", "Kayıp Zaman (Saat)", "Son Durum"] if c in df.columns]
+            secilen_sutunlar = st.multiselect(
+                "Raporda Görünmesini İstediğiniz Sütunlar:",
+                options=df.columns.tolist(),
+                default=varsayilan_sutunlar
+            )
         
         rapor_df = df if secilen_musteri == "Tüm Müşteriler" else df[df['Müşteri Adı'] == secilen_musteri]
-        html_report = generate_customer_report(rapor_df, secilen_musteri)
         
-        st.download_button(
-            label=f"📥 {secilen_musteri} İçin Raporu İndir (HTML / Tarayıcıda Aç)",
-            data=html_report,
-            file_name=f"Rapor_{secilen_musteri}_{datetime.now().strftime('%Y%m%d')}.html",
-            mime="text/html",
-            use_container_width=True,
-            type="primary"
-        )
-        st.caption("ℹ️ İndirdiğiniz rapora çift tıklayarak tarayıcınızda açabilir, klavyeden **Ctrl+P** tuşlarına basarak doğrudan **PDF olarak kaydedebilir** veya çıktısını alabilirsiniz.")
+        if not secilen_sutunlar:
+            st.warning("⚠️ Lütfen raporda görünmesi için en az bir sütun seçin!")
+        else:
+            html_report = generate_customer_report(rapor_df, secilen_musteri, secilen_sutunlar)
+            
+            st.download_button(
+                label=f"📥 Seçilen Sütunlarla Raporu İndir (HTML / Tarayıcıda Aç)",
+                data=html_report,
+                file_name=f"Rapor_{secilen_musteri}_{datetime.now().strftime('%Y%m%d')}.html",
+                mime="text/html",
+                use_container_width=True,
+                type="primary"
+            )
+            st.caption("ℹ️ İndirdiğiniz rapora çift tıklayarak tarayıcınızda açabilir, klavyeden **Ctrl+P** tuşlarına basarak doğrudan **PDF olarak kaydedebilirsiniz**.")
         
         st.markdown("---")
         m1, m2, m3, m4 = st.columns(4)
