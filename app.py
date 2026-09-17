@@ -11,7 +11,7 @@ st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wi
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1UsGlWxzRmiriAufzk14D0oiS3CyHMAjENyFhIbw9VG4/edit?pli=1&gid=0#gid=0"
 
 SUTUNLAR = [
-    "ID", "Tarih", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
+    "ID", "Tarih", "Dönem (Ay/Yıl)", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
     "Referans No", "Seri No", "Duruş Nedeni", "İşlem Açıklaması", 
     "Gelen Parti Miktarı", "Hata Oranı (%)", "P/H", 
     "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", "Son Durum", 
@@ -26,6 +26,13 @@ DURUS_NEDENLERI = [
     "Ekipman / Line Arızası", 
     "Kalıp / Parça Uyumsuzluğu", 
     "Diğer"
+]
+
+DONEM_LISTESI = [
+    "Ocak 2026", "Şubat 2026", "Mart 2026", "Nisan 2026", "Mayıs 2026", "Haziran 2026",
+    "Temmuz 2026", "Ağustos 2026", "Eylül 2026", "Ekim 2026", "Kasım 2026", "Aralık 2026",
+    "Ocak 2027", "Şubat 2027", "Mart 2027", "Nisan 2027", "Mayıs 2027", "Haziran 2027",
+    "Temmuz 2027", "Ağustos 2027", "Eylül 2027", "Ekim 2027", "Kasım 2027", "Aralık 2027"
 ]
 
 # --- STREAMLIT SECRETS İLE GSPREAD BAĞLANTISI ---
@@ -101,7 +108,7 @@ if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
 
 # --- ÖZELLEŞTİRİLMİŞ SÜTUN SEÇMELİ MÜŞTERİ RAPORU ---
-def generate_customer_report(dataframe, filtered_customer, selected_columns):
+def generate_customer_report(dataframe, filtered_customer, filtered_donem, selected_columns):
     filtered_df = dataframe[selected_columns] if selected_columns else dataframe
     
     toplam_kayit = len(dataframe)
@@ -133,6 +140,7 @@ def generate_customer_report(dataframe, filtered_customer, selected_columns):
         </div>
         <div class="info">
             <p><strong>Rapor Tarihi:</strong> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+            <p><strong>Seçilen Dönem:</strong> {filtered_donem}</p>
             <p><strong>Raporlanan Müşteri / Kriter:</strong> {filtered_customer}</p>
             <p><strong>Toplam Kayıt:</strong> {toplam_kayit} Adet &nbsp;|&nbsp; <strong>Toplam Kayıp Zaman:</strong> {toplam_kayip:.1f} Saat &nbsp;|&nbsp; <strong>Onaylanan Süre:</strong> {onaylanan:.1f} Saat</p>
         </div>
@@ -203,6 +211,11 @@ if st.sidebar.button("🚪 Çıkış Yap", use_container_width=True):
 st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
 st.markdown("---")
 
+# Global Veri Yükleme ve Eksik Dönem Doldurma Kontrolü
+df = load_data()
+if not df.empty and "Dönem (Ay/Yıl)" in df.columns:
+    df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].fillna("Eylül 2026")
+
 if user["role"] == "admin":
     tab1, tab2, tab3 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Rapor"])
 else:
@@ -213,8 +226,9 @@ if user["role"] == "admin":
     with tab1:
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
         
-        col1, col2 = st.columns(2)
-        with col1:
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            secilen_donem_form = st.selectbox("Dönem Seçin (Ay / Yıl) *", options=DONEM_LISTESI, index=8, key="f_donem") # Eylül 2026 varsayılan index=8
             musteri_adi = st.text_input("Müşteri Adı *", key="f_musteri")
             sorumlu_muhendis = st.text_input("Müşteri Sorumlu Mühendis Adı", key="f_muhendis")
             irsaliye_no = st.text_input("İrsaliye No", key="f_irsaliye")
@@ -222,7 +236,7 @@ if user["role"] == "admin":
             seri_no = st.text_input("Seri No", key="f_seri")
             durus_nedeni = st.selectbox("Duruş / Zaman Kaybı Nedeni *", DURUS_NEDENLERI, key="f_neden")
             
-        with col2:
+        with col_f2:
             gelen_parti = st.number_input("Gelen Parti / Stok Miktarı (Adet)", min_value=1, value=1000, step=10, key="f_parti")
             hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.5, key="f_hata")
             ph = st.number_input("P/H (Parça / Saat)", min_value=0.1, value=100.0, step=1.0, key="f_ph")
@@ -280,6 +294,7 @@ if user["role"] == "admin":
                 yeni_kayit = pd.DataFrame([{
                     "ID": yeni_id,
                     "Tarih": bugun,
+                    "Dönem (Ay/Yıl)": secilen_donem_form,
                     "Müşteri Adı": musteri_adi,
                     "Sorumlu Mühendis": sorumlu_muhendis,
                     "İrsaliye No": irsaliye_no,
@@ -300,13 +315,15 @@ if user["role"] == "admin":
                 
                 guncel_df = pd.concat([mevcut_df, yeni_kayit], ignore_index=True)
                 if update_google_sheet(guncel_df):
-                    st.success(f"ID #{yeni_id} (Referans: {referans_no}) başarıyla kaydedildi!")
+                    st.success(f"ID #{yeni_id} ({secilen_donem_form} - {musteri_adi}) başarıyla kaydedildi!")
                     st.rerun()
 
 # ---------------- TAB 2: YÖNETİM ----------------
 with tab2:
     df = load_data()
-    
+    if not df.empty and "Dönem (Ay/Yıl)" in df.columns:
+        df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].fillna("Eylül 2026")
+        
     if user["role"] == "admin":
         st.subheader("📊 Kayıt Yönetimi (Düzenle & Toplu/Tekli Sil)")
         
@@ -321,6 +338,7 @@ with tab2:
                 column_config={
                     "Seç": st.column_config.CheckboxColumn("Seç", default=False),
                     "ID": st.column_config.NumberColumn("ID", disabled=True),
+                    "Dönem (Ay/Yıl)": st.column_config.SelectboxColumn("Dönem (Ay/Yıl)", options=DONEM_LISTESI, required=True),
                     "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0, max_value=100, format="%.1f%%"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
@@ -377,13 +395,17 @@ with tab2:
                         with st.form(f"form_guncelle_{secilen_id}"):
                             c1, c2, c3 = st.columns(3)
                             with c1:
+                                mevcut_satir_donem = satir["Dönem (Ay/Yıl)"] if pd.notna(satir["Dönem (Ay/Yıl)"]) and satir["Dönem (Ay/Yıl)"] in DONEM_LISTESI else "Eylül 2026"
+                                idx_donem = DONEM_LISTESI.index(mevcut_satir_donem)
+                                g_donem = st.selectbox("Dönem (Ay/Yıl)", DONEM_LISTESI, index=idx_donem)
+                                
                                 g_musteri = st.text_input("Müşteri Adı", value=str(satir["Müşteri Adı"] if pd.notna(satir["Müşteri Adı"]) else ""))
                                 g_muhendis = st.text_input("Sorumlu Mühendis", value=str(satir["Sorumlu Mühendis"] if pd.notna(satir["Sorumlu Mühendis"]) else ""))
                                 g_irsaliye = st.text_input("İrsaliye No", value=str(satir["İrsaliye No"] if pd.notna(satir["İrsaliye No"]) else ""))
                                 g_ref = st.text_input("Referans No", value=str(satir["Referans No"] if pd.notna(satir["Referans No"]) else ""))
-                                g_seri = st.text_input("Seri No", value=str(satir["Seri No"] if pd.notna(satir["Seri No"]) else ""))
                             
                             with c2:
+                                g_seri = st.text_input("Seri No", value=str(satir["Seri No"] if pd.notna(satir["Seri No"]) else ""))
                                 idx_neden = DURUS_NEDENLERI.index(satir["Duruş Nedeni"]) if satir["Duruş Nedeni"] in DURUS_NEDENLERI else 0
                                 g_neden = st.selectbox("Duruş Nedeni", DURUS_NEDENLERI, index=idx_neden)
                                 g_parti = st.number_input("Gelen Parti", value=int(satir["Gelen Parti Miktarı"]) if pd.notna(satir["Gelen Parti Miktarı"]) else 1000)
@@ -410,6 +432,7 @@ with tab2:
                                 
                             if btn_update:
                                 clean_df = df.drop(columns=["Seç"], errors="ignore")
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Dönem (Ay/Yıl)"] = g_donem
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Müşteri Adı"] = g_musteri
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Sorumlu Mühendis"] = g_muhendis
                                 clean_df.loc[clean_df['ID'] == secilen_id, "İrsaliye No"] = g_irsaliye
@@ -452,36 +475,69 @@ with tab2:
 
 # ---------------- TAB 3: ANALİZ & RAPOR ----------------
 with tab3:
-    st.subheader("Analiz Panosu & Müşteri Raporu")
+    st.subheader("Analiz Panosu & Dönemsel Müşteri Raporu")
     df = load_data()
+    if not df.empty and "Dönem (Ay/Yıl)" in df.columns:
+        df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].fillna("Eylül 2026")
     
     if not df.empty and not df.dropna(how='all').empty:
-        st.markdown("### 📄 Özelleştirilmiş Müşteri Raporu İndir")
         
+        # --- ÜST FİLTRE VE DÖNEM BAZLI ÖZET BANNER ---
+        st.markdown("### 🔍 Dönem ve Müşteri Filtreleme")
+        col_f_ust1, col_f_ust2 = st.columns(2)
+        
+        with col_f_ust1:
+            mevcut_donemler = sorted(df['Dönem (Ay/Yıl)'].dropna().unique().tolist())
+            if "Eylül 2026" not in mevcut_donemler:
+                mevcut_donemler.insert(0, "Eylül 2026")
+            secilen_analiz_donemi = st.selectbox("Dönem Seçin:", options=mevcut_donemler, index=mevcut_donemler.index("Eylül 2026") if "Eylül 2026" in mevcut_donemler else 0)
+            
+        with col_f_ust2:
+            analiz_musteri_listesi = ["Tüm Müşteriler"] + sorted(df['Müşteri Adı'].dropna().unique().tolist())
+            secilen_analiz_musteri = st.selectbox("Müşteri Seçin:", options=analiz_musteri_listesi)
+            
+        # Filtreleme Uygula
+        filtrelenmis_df = df[df['Dönem (Ay/Yıl)'] == secilen_analiz_donemi]
+        if secilen_analiz_musteri != "Tüm Müşteriler":
+            filtrelenmis_df = filtrelenmis_df[filtrelenmis_df['Müşteri Adı'] == secilen_analiz_musteri]
+            
+        toplam_kayip_sure = pd.to_numeric(filtrelenmis_df['Kayıp Zaman (Saat)'], errors='coerce').sum()
+        gosterilecek_musteri_adi = secilen_analiz_musteri if secilen_analiz_musteri != "Tüm Müşteriler" else "Tüm Müşteriler"
+        
+        # --- İSTEDİĞİN ÖZET BANNER GÖRÜNÜMÜ ---
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #1f77b4, #2ca02c); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">{secilen_analiz_donemi} &mdash; {toplam_kayip_sure:.1f} Saat &mdash; {gosterilecek_musteri_adi}</h3>
+            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Seçilen kriterlere ait toplam duruş ve kayıp zaman özetidir.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("### 📄 Rapor İndirme Aracı")
         col_r1, col_r2 = st.columns(2)
         with col_r1:
-            musteri_listesi = ["Tüm Müşteriler"] + df['Müşteri Adı'].dropna().unique().tolist()
-            secilen_musteri = st.selectbox("Raporlanacak Müşteriyi Seçin:", options=musteri_listesi)
-            
+            rapor_musteri_secim = st.selectbox("Rapor için Müşteri:", options=analiz_musteri_listesi, key="rapor_musteri")
         with col_r2:
-            varsayilan_sutunlar = [c for c in ["Tarih", "Müşteri Adı", "Referans No", "Duruş Nedeni", "Kayıp Zaman (Saat)", "Son Durum"] if c in df.columns]
+            varsayilan_sutunlar = [c for c in ["Tarih", "Dönem (Ay/Yıl)", "Müşteri Adı", "Referans No", "Duruş Nedeni", "Kayıp Zaman (Saat)", "Son Durum"] if c in df.columns]
             secilen_sutunlar = st.multiselect(
                 "Raporda Görünmesini İstediğiniz Sütunlar:",
                 options=df.columns.tolist(),
-                default=varsayilan_sutunlar
+                default=varsayilan_sutunlar,
+                key="rapor_sutunlar"
             )
         
-        rapor_df = df if secilen_musteri == "Tüm Müşteriler" else df[df['Müşteri Adı'] == secilen_musteri]
+        rapor_hedef_df = df[df['Dönem (Ay/Yıl)'] == secilen_analiz_donemi]
+        if rapor_musteri_secim != "Tüm Müşteriler":
+            rapor_hedef_df = rapor_hedef_df[rapor_hedef_df['Müşteri Adı'] == rapor_musteri_secim]
         
         if not secilen_sutunlar:
             st.warning("⚠️ Lütfen raporda görünmesi için en az bir sütun seçin!")
         else:
-            html_report = generate_customer_report(rapor_df, secilen_musteri, secilen_sutunlar)
+            html_report = generate_customer_report(rapor_hedef_df, rapor_musteri_secim, secilen_analiz_donemi, secilen_sutunlar)
             
             st.download_button(
-                label=f"📥 Seçilen Sütunlarla Raporu İndir (HTML / Tarayıcıda Aç)",
+                label=f"📥 {secilen_analiz_donemi} Dönemi Raporunu İndir (HTML / Tarayıcıda Aç)",
                 data=html_report,
-                file_name=f"Rapor_{secilen_musteri}_{datetime.now().strftime('%Y%m%d')}.html",
+                file_name=f"Rapor_{rapor_musteri_secim}_{secilen_analiz_donemi.replace(' ', '_')}.html",
                 mime="text/html",
                 use_container_width=True,
                 type="primary"
@@ -490,16 +546,24 @@ with tab3:
         
         st.markdown("---")
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Toplam Kayıt", len(df))
-        m2.metric("Toplam Kayıp Zaman", f"{pd.to_numeric(df['Kayıp Zaman (Saat)'], errors='coerce').sum():.1f} Saat")
-        m3.metric("Onaylanan Süre", f"{pd.to_numeric(df[df['Son Durum'] == 'Onay Geldi']['Kayıp Zaman (Saat)'], errors='coerce').sum():.1f} Saat")
-        m4.metric("Bekleyen Süre", f"{pd.to_numeric(df[df['Son Durum'] == 'Mail Atıldı']['Kayıp Zaman (Saat)'], errors='coerce').sum():.1f} Saat")
+        m1.metric(f"Toplam Kayıt ({secilen_analiz_donemi})", len(filtrelenmis_df))
+        m2.metric("Toplam Kayıp Zaman", f"{toplam_kayip_sure:.1f} Saat")
+        m3.metric("Onaylanan Süre", f"{pd.to_numeric(filtrelenmis_df[filtrelenmis_df['Son Durum'] == 'Onay Geldi']['Kayıp Zaman (Saat)'], errors='coerce').sum():.1f} Saat")
+        m4.metric("Bekleyen Süre", f"{pd.to_numeric(filtrelenmis_df[filtrelenmis_df['Son Durum'] == 'Mail Atıldı']['Kayıp Zaman (Saat)'], errors='coerce').sum():.1f} Saat")
         
         st.markdown("---")
         c1, c2 = st.columns(2)
         with c1:
-            st.write("### Müşteri Bazlı Toplam Kayıp Zamanlar")
-            st.bar_chart(df.groupby('Müşteri Adı')['Kayıp Zaman (Saat)'].sum())
+            st.write(f"### {secilen_analiz_donemi} - Müşteri Bazlı Kayıp Zamanlar")
+            if not filtrelenmis_df.empty:
+                st.bar_chart(filtrelenmis_df.groupby('Müşteri Adı')['Kayıp Zaman (Saat)'].sum())
+            else:
+                st.info("Bu dönemde veri bulunmuyor.")
         with c2:
-            st.write("### Duruş Nedenlerine Göre Dağılım")
-            st.bar_chart(df.groupby('Duruş Nedeni')['Kayıp Zaman (Saat)'].sum())
+            st.write(f"### {secilen_analiz_donemi} - Duruş Nedenlerine Göre Dağılım")
+            if not filtrelenmis_df.empty:
+                st.bar_chart(filtrelenmis_df.groupby('Duruş Nedeni')['Kayıp Zaman (Saat)'].sum())
+            else:
+                st.info("Bu dönemde veri bulunmuyor.")
+    else:
+        st.info("Henüz analiz edilecek veri bulunmuyor.")
