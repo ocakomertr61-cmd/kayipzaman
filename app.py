@@ -75,9 +75,13 @@ def _fetch_data_from_sheet():
         
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if num_col in df.columns:
-                # Eğer veriler string gelip nokta/virgül karmaşası yaşadıysa düzelt
-                if df[num_col].dtype == object:
-                    df[num_col] = df[num_col].astype(str).str.replace(',', '.', regex=False)
+                # Verideki olası virgül/nokta karmaşasını ve binlik ayraçlarını temizle
+                df[num_col] = (
+                    df[num_col]
+                    .astype(str)
+                    .str.replace('.', '', regex=False)  # Binlik ayraç olarak gelen noktaları kaldır
+                    .str.replace(',', '.', regex=False)  # Virgülleri ondalık noktaya çevir
+                )
                 df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
         
         df['Gelen Parti Miktarı'] = pd.to_numeric(df['Gelen Parti Miktarı'], errors='coerce').fillna(0).astype(int)
@@ -102,11 +106,12 @@ def update_google_sheet(df):
         spreadsheet = client.open_by_url(SHEET_URL)
         worksheet = spreadsheet.get_worksheet(0)
         
-        # Verileri yazarken ondalık basamakların bozulmaması için string formatına güvenli aktarım
         df_to_write = df.copy()
         for col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if col in df_to_write.columns:
-                df_to_write[col] = pd.to_numeric(df_to_write[col], errors='coerce').round(2)
+                # Sayıları yuvarla ve Google Sheets'e Türkçe ondalık formatında (virgüllü string) yazarak binlik nokta hatasını önle
+                numeric_series = pd.to_numeric(df_to_write[col], errors='coerce').round(2)
+                df_to_write[col] = numeric_series.apply(lambda x: f"{x:.2f}".replace('.', ',') if pd.notnull(x) else "")
                 
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
@@ -270,9 +275,9 @@ if user["role"] == "admin":
             durus_nedeni = st.selectbox("Duruş / Zaman Kaybı Nedeni *", DURUS_NEDENLERI, key="f_neden")
             
         with col_f2:
-            gelen_parti = st.number_input("Gelen Parti / Stok Miktarı (Adet)", min_value=1, value=1000, step=10, key="f_parti")
-            hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.5, key="f_hata")
-            ph = st.number_input("P/H (Parça / Saat)", min_value=0.1, value=100.0, step=1.0, key="f_ph")
+            gelen_parti = st.number_input("Gelen Parti / Stok Miktarı (Adet)", min_value=1, value=14000, step=10, key="f_parti")
+            hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=100.0, step=0.5, key="f_hata")
+            ph = st.number_input("P/H (Parça / Saat)", min_value=0.1, value=520.0, step=1.0, key="f_ph")
             
             canli_islem_adet = gelen_parti * (hata_orani / 100.0)
             canli_hesaplanan_saat = round(canli_islem_adet / ph, 2) if ph > 0 else 0.0
@@ -299,7 +304,7 @@ if user["role"] == "admin":
                 st.success(f"⏱️ **Hesaplanan Zaman: {hesaplanan_zaman:.2f} Saat**  \n*(Detay: {int(canli_islem_adet)} Adet Hatalı Parça / {ph} P/H)*")
                 
             st.markdown("---")
-            kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=1.0, step=0.1, format="%.2f", key="f_kayip")
+            kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=26.92, step=0.1, format="%.2f", key="f_kayip")
             son_durum = st.selectbox("Son Durum *", DURUM_OPSIYONLARI, key="f_durum")
 
         islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...", key="f_aciklama")
@@ -593,7 +598,7 @@ with tab3:
         with c1:
             st.write(f"### {secilen_analiz_donemi} - Müşteri Bazlı Hesaplanan Zamanlar")
             if not filtrelenmis_df.empty:
-                grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adы')['Hesaplanan Zaman (Saat)'].sum() if 'Müşteri Adы' in filtrelenmis_df.columns else filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum()
+                grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum()
                 st.bar_chart(grafik_veri_1)
             else:
                 st.info("Bu dönemde veri bulunmuyor.")
