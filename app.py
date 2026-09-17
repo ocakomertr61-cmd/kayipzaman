@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
+import gspread
 
 # Page Configuration
 st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wide", page_icon="⏱️")
@@ -30,18 +31,37 @@ DURUS_NEDENLERI = [
     "Diğer"
 ]
 
+# --- GSPREAD İLE GÜVENLİ GOOGLE SHEETS YAZMA YARDIMCISI ---
+def update_google_sheet(df):
+    try:
+        # Streamlit secrets üzerinden gspread kimlik doğrulaması
+        gc = gspread.service_account_from_dict(st.secrets["connections"]["gsheets"])
+        spreadsheet = gc.open_by_url(SHEET_URL)
+        worksheet = spreadsheet.get_worksheet(0) # İlk sayfa
+        
+        # DataFrame'i temizle ve NaN değerleri boş string yap
+        df_to_write = df.fillna("")
+        
+        # Tabloyu tamamen temizle ve yeniden yaz
+        worksheet.clear()
+        worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
+        return True
+    except Exception as e:
+        st.error(f"Google Sheets güncelleme hatası: {e}")
+        return False
+
 # --- KULLANICI / YETKİLENDİRME VERİ TABANI ---
 if "users" not in st.session_state:
     st.session_state["users"] = {
         "omer.ocak": {
             "password": "OCK6161",
             "name": "Ömer OCAK",
-            "role": "admin"  # Tam yetkili
+            "role": "admin"
         },
         "mehmet.alasar": {
             "password": "MHMT3434",
             "name": "Mehmet ALAŞAR",
-            "role": "viewer" # Sadece okuma / görüntüleme
+            "role": "viewer"
         }
     }
 
@@ -62,7 +82,7 @@ def load_data():
     except Exception:
         return pd.DataFrame(columns=SUTUNLAR)
 
-# --- ÖZELLEŞTİRİLMİŞ SÜTUN SEÇMELİ MÜŞTERİ RAPORU (PDF/YAZDIRMA UYUMLU) ---
+# --- ÖZELLEŞTİRİLMİŞ SÜTUN SEÇMELİ MÜŞTERİ RAPORU ---
 def generate_customer_report(dataframe, filtered_customer, selected_columns):
     filtered_df = dataframe[selected_columns] if selected_columns else dataframe
     
@@ -261,9 +281,9 @@ if user["role"] == "admin":
                 }])
                 
                 guncel_df = pd.concat([mevcut_df, yeni_kayit], ignore_index=True)
-                conn.update(spreadsheet=SHEET_URL, data=guncel_df)
-                st.success(f"ID #{yeni_id} (Referans: {referans_no}) başarıyla kaydedildi!")
-                st.rerun()
+                if update_google_sheet(guncel_df):
+                    st.success(f"ID #{yeni_id} (Referans: {referans_no}) başarıyla kaydedildi!")
+                    st.rerun()
 
 # ---------------- TAB 2: YÖNETİM ----------------
 with tab2:
@@ -296,9 +316,9 @@ with tab2:
             with c_kaydet:
                 if st.button("🔄 Tablo Değişikliklerini Kaydet", use_container_width=True):
                     clean_df = edited_df.drop(columns=["Seç"], errors="ignore")
-                    conn.update(spreadsheet=SHEET_URL, data=clean_df)
-                    st.success("Tablo değişiklikleri başarıyla kaydedildi!")
-                    st.rerun()
+                    if update_google_sheet(clean_df):
+                        st.success("Tablo değişiklikleri başarıyla kaydedildi!")
+                        st.rerun()
                     
             with c_toplu_sil:
                 if st.button("🔴 Seçili Kayıtları Toplu Sil", use_container_width=True, type="primary"):
@@ -308,9 +328,9 @@ with tab2:
                     else:
                         silinecek_id_listesi = secilenler["ID"].tolist()
                         kalan_df = edited_df[edited_df["Seç"] == False].drop(columns=["Seç"], errors="ignore")
-                        conn.update(spreadsheet=SHEET_URL, data=kalan_df)
-                        st.success(f"Seçilen {len(silinecek_id_listesi)} adet kayıt başarıyla silindi!")
-                        st.rerun()
+                        if update_google_sheet(kalan_df):
+                            st.success(f"Seçilen {len(silinecek_id_listesi)} adet kayıt başarıyla silindi!")
+                            st.rerun()
                         
             with c_indir:
                 download_df = df.drop(columns=["Seç"], errors="ignore")
@@ -389,16 +409,16 @@ with tab2:
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Hata Görseli Linki"] = g_gorsel
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Onay Belgesi Linki"] = g_onay
                                 
-                                conn.update(spreadsheet=SHEET_URL, data=clean_df)
-                                st.success("Güncellendi!")
-                                st.rerun()
+                                if update_google_sheet(clean_df):
+                                    st.success("Güncellendi!")
+                                    st.rerun()
                                 
                             if btn_delete:
                                 clean_df = df.drop(columns=["Seç"], errors="ignore")
                                 guncel_df = clean_df[clean_df['ID'] != secilen_id]
-                                conn.update(spreadsheet=SHEET_URL, data=guncel_df)
-                                st.warning("Silindi!")
-                                st.rerun()
+                                if update_google_sheet(guncel_df):
+                                    st.warning("Silindi!")
+                                    st.rerun()
 
             with col_tumunu_sil:
                 st.subheader("⚠️ Tabloyu Temizle")
@@ -406,9 +426,9 @@ with tab2:
                     onay = st.checkbox("Evet, tüm kayıtları sil.")
                     if st.button("⚠️ Tüm Tabloyu Sil", type="primary") and onay:
                         bos_df = pd.DataFrame(columns=SUTUNLAR)
-                        conn.update(spreadsheet=SHEET_URL, data=bos_df)
-                        st.success("Sıfırlandı!")
-                        st.rerun()
+                        if update_google_sheet(bos_df):
+                            st.success("Sıfırlandı!")
+                            st.rerun()
     else:
         st.dataframe(df, use_container_width=True)
 
