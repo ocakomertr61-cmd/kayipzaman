@@ -133,8 +133,8 @@ def generate_customer_report(dataframe, filtered_customer, filtered_donem, selec
     filtered_df = dataframe[selected_columns] if selected_columns else dataframe
     
     toplam_kayit = len(dataframe)
-    toplam_kayip = pd.to_numeric(dataframe['Kayıp Zaman (Saat)'], errors='coerce').sum()
-    onaylanan = pd.to_numeric(dataframe[dataframe['Son Durum'] == "Onay Geldi"]['Kayıp Zaman (Saat)'], errors='coerce').sum()
+    toplam_hesaplanan = pd.to_numeric(dataframe['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
+    onaylanan = pd.to_numeric(dataframe[dataframe['Son Durum'] == "Onay Geldi"]['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
     
     html_content = f"""
     <!DOCTYPE html>
@@ -157,13 +157,13 @@ def generate_customer_report(dataframe, filtered_customer, filtered_donem, selec
     </head>
     <body>
         <div class="header">
-            <h2>ALAŞAR GRUP - MÜŞTERİ KAYIP ZAMAN & DURUŞ RAPORU</h2>
+            <h2>ALAŞAR GRUP - MÜŞTERİ HESAPLANAN ZAMAN & DURUŞ RAPORU</h2>
         </div>
         <div class="info">
             <p><strong>Rapor Tarihi:</strong> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
             <p><strong>Seçilen Dönem:</strong> {filtered_donem}</p>
             <p><strong>Raporlanan Müşteri / Kriter:</strong> {filtered_customer}</p>
-            <p><strong>Toplam Kayıt:</strong> {toplam_kayit} Adet &nbsp;|&nbsp; <strong>Toplam Kayıp Zaman:</strong> {toplam_kayip:.1f} Saat &nbsp;|&nbsp; <strong>Onaylanan Süre:</strong> {onaylanan:.1f} Saat</p>
+            <p><strong>Toplam Kayıt:</strong> {toplam_kayit} Adet &nbsp;|&nbsp; <strong>Toplam Hesaplanan Zaman:</strong> {toplam_hesaplanan:.1f} Saat &nbsp;|&nbsp; <strong>Onaylanan Süre:</strong> {onaylanan:.1f} Saat</p>
         </div>
         {filtered_df.to_html(index=False, escape=False)}
         <div class="footer">
@@ -520,15 +520,15 @@ with tab3:
         if secilen_analiz_musteri != "Tüm Müşteriler":
             filtrelenmis_df = filtrelenmis_df[filtrelenmis_df['Müşteri Adı'] == secilen_analiz_musteri]
             
-        # Toplam kayıp zaman (Doğrudan kullanıcının seçtiği ve kaydettiği fiili duruş / kayıp zaman sütunundan toplanır)
-        toplam_kayip_sure = pd.to_numeric(filtrelenmis_df['Kayıp Zaman (Saat)'], errors='coerce').sum()
+        # Toplam Hesaplanan Zaman (Formülden veya Manuel girilip tabloya giden "Hesaplanan Zaman (Saat)" sütunundan toplanır)
+        toplam_hesaplanan_sure = pd.to_numeric(filtrelenmis_df['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         gosterilecek_musteri_adi = secilen_analiz_musteri if secilen_analiz_musteri != "Tüm Müşteriler" else "Tüm Müşteriler"
         
-        # --- ÜST ÖZET BANNER (Örn: Eylül 2026 — 434 Saat — Legrand) ---
+        # --- ÜST ÖZET BANNER (Artık "Hesaplanan Zaman" verisini toplar ve gösterir) ---
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #1f77b4, #2ca02c); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h3 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">{secilen_analiz_donemi} &mdash; {toplam_kayip_sure:.1f} Saat &mdash; {gosterilecek_musteri_adi}</h3>
-            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Seçilen kriterlere ait toplam fiili kayıp zaman özetidir.</p>
+            <h3 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">{secilen_analiz_donemi} &mdash; {toplam_hesaplanan_sure:.1f} Saat &mdash; {gosterilecek_musteri_adi}</h3>
+            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Seçilen kriterlere ait toplam hesaplanan zaman özetidir.</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -537,7 +537,7 @@ with tab3:
         with col_r1:
             rapor_musteri_secim = st.selectbox("Rapor için Müşteri:", options=analiz_musteri_listesi, key="rapor_musteri")
         with col_r2:
-            varsayilan_sutunlar = [c for c in ["Tarih", "Dönem (Ay/Yıl)", "Müşteri Adı", "Referans No", "Duruş Nedeni", "Kayıp Zaman (Saat)", "Son Durum"] if c in df.columns]
+            varsayilan_sutunlar = [c for c in ["Tarih", "Dönem (Ay/Yıl)", "Müşteri Adı", "Referans No", "Duruş Nedeni", "Hesaplanan Zaman (Saat)", "Son Durum"] if c in df.columns]
             secilen_sutunlar = st.multiselect(
                 "Raporda Görünmesini İstediğiniz Sütunlar:",
                 options=df.columns.tolist(),
@@ -567,27 +567,27 @@ with tab3:
         st.markdown("---")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric(f"Toplam Kayıt ({secilen_analiz_donemi})", len(filtrelenmis_df))
-        m2.metric("Toplam Kayıp Zaman", f"{toplam_kayip_sure:.1f} Saat")
+        m2.metric("Toplam Hesaplanan Zaman", f"{toplam_hesaplanan_sure:.1f} Saat")
         
-        onaylanan_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Onay Geldi', 'Kayıp Zaman (Saat)'], errors='coerce').sum()
+        onaylanan_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         m3.metric("Onaylanan Süre", f"{onaylanan_sure:.1f} Saat")
         
-        bekleyen_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Mail Atıldı', 'Kayıp Zaman (Saat)'], errors='coerce').sum()
+        bekleyen_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Mail Atıldı', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
         m4.metric("Bekleyen Süre", f"{bekleyen_sure:.1f} Saat")
         
         st.markdown("---")
         c1, c2 = st.columns(2)
         with c1:
-            st.write(f"### {secilen_analiz_donemi} - Müşteri Bazlı Kayıp Zamanlar")
+            st.write(f"### {secilen_analiz_donemi} - Müşteri Bazlı Hesaplanan Zamanlar")
             if not filtrelenmis_df.empty:
-                grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adı')['Kayıp Zaman (Saat)'].sum()
+                grafik_veri_1 = filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum()
                 st.bar_chart(grafik_veri_1)
             else:
                 st.info("Bu dönemde veri bulunmuyor.")
         with c2:
             st.write(f"### {secilen_analiz_donemi} - Duruş Nedenlerine Göre Dağılım")
             if not filtrelenmis_df.empty:
-                grafik_veri_2 = filtrelenmis_df.groupby('Duruş Nedeni')['Kayıp Zaman (Saat)'].sum()
+                grafik_veri_2 = filtrelenmis_df.groupby('Duruş Nedeni')['Hesaplanan Zaman (Saat)'].sum()
                 st.bar_chart(grafik_veri_2)
             else:
                 st.info("Bu dönemde veri bulunmuyor.")
