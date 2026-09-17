@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
-from fpdf import FPDF
-import io
 
 # Page Configuration
 st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wide", page_icon="⏱️")
@@ -64,64 +62,38 @@ def load_data():
     except Exception:
         return pd.DataFrame(columns=SUTUNLAR)
 
-# --- PDF RAPOR OLUŞTURMA FONKSİYONU ---
-def create_pdf_report(dataframe, filtered_customer="Tüm Müşteriler"):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    
-    # Başlık
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "MUSTERI KAYIP ZAMAN & DURUS RAPORU", ln=True, align="C")
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 8, f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=True, align="C")
-    pdf.cell(0, 6, f"Filtre / Musteri: {filtered_customer}", ln=True, align="C")
-    pdf.ln(5)
-    
-    # Özet Metrikler
+# --- MÜŞTERİ RAPORU OLUŞTURMA (HTML / EXCEL FORMATI) ---
+def generate_customer_report(dataframe, filtered_customer):
     toplam_kayit = len(dataframe)
     toplam_kayip = pd.to_numeric(dataframe['Kayıp Zaman (Saat)'], errors='coerce').sum()
     onaylanan = pd.to_numeric(dataframe[dataframe['Son Durum'] == "Onay Geldi"]['Kayıp Zaman (Saat)'], errors='coerce').sum()
     
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, f"Ozet Bilgiler:", ln=True)
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(60, 6, f"- Toplam Kayit: {toplam_kayit} Adet", ln=True)
-    pdf.cell(60, 6, f"- Toplam Kayip Zaman: {toplam_kayip:.1f} Saat", ln=True)
-    pdf.cell(60, 6, f"- Onaylanan Sure: {onaylanan:.1f} Saat", ln=True)
-    pdf.ln(5)
-    
-    # Tablo Başlıkları
-    pdf.set_font("Helvetica", "B", 8)
-    pdf.cell(12, 7, "ID", border=1, align="C")
-    pdf.cell(35, 7, "Musteri", border=1, align="C")
-    pdf.cell(30, 7, "Referans No", border=1, align="C")
-    pdf.cell(40, 7, "Durus Nedeni", border=1, align="C")
-    pdf.cell(25, 7, "Hesap (Sa)", border=1, align="C")
-    pdf.cell(25, 7, "Kayip (Sa)", border=1, align="C")
-    pdf.cell(25, 7, "Son Durum", border=1, align="C")
-    pdf.ln()
-    
-    # Tablo Satırları
-    pdf.set_font("Helvetica", "", 7)
-    for idx, row in dataframe.iterrows():
-        m_adi = str(row["Müşteri Adı"])[:18] if pd.notna(row["Müşteri Adı"]) else ""
-        ref = str(row["Referans No"])[:14] if pd.notna(row["Referans No"]) else ""
-        neden = str(row["Duruş Nedeni"])[:20] if pd.notna(row["Duruş Nedeni"]) else ""
-        hesap = str(row["Hesaplanan Zaman (Saat)"]) if pd.notna(row["Hesaplanan Zaman (Saat)"]) else "0"
-        kayip = str(row["Kayıp Zaman (Saat)"]) if pd.notna(row["Kayıp Zaman (Saat)"]) else "0"
-        durum = str(row["Son Durum"]) if pd.notna(row["Son Durum"]) else ""
-        
-        pdf.cell(12, 6, str(row["ID"]), border=1, align="C")
-        pdf.cell(35, 6, m_adi, border=1)
-        pdf.cell(30, 6, ref, border=1)
-        pdf.cell(40, 6, neden, border=1)
-        pdf.cell(25, 6, hesap, border=1, align="C")
-        pdf.cell(25, 6, kayip, border=1, align="C")
-        pdf.cell(25, 6, durum, border=1, align="C")
-        pdf.ln()
-        
-    return bytes(pdf.output())
+    html_content = f"""
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Kayıp Zaman ve Duruş Raporu</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; color: #333; }}
+            h2 {{ color: #1f77b4; text-align: center; }}
+            .info {{ margin-bottom: 20px; background: #f9f9f9; padding: 10px; border-radius: 5px; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background-color: #f2f2f2; }}
+        </style>
+    </head>
+    <body>
+        <h2>MÜŞTERİ KAYIP ZAMAN & DURUŞ RAPORU</h2>
+        <div class="info">
+            <p><strong>Rapor Tarihi:</strong> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+            <p><strong>Raporlanan Müşteri:</strong> {filtered_customer}</p>
+            <p><strong>Toplam Kayıt:</strong> {toplam_kayit} Adet | <strong>Toplam Kayıp Zaman:</strong> {toplam_kayip:.1f} Saat | <strong>Onaylanan Süre:</strong> {onaylanan:.1f} Saat</p>
+        </div>
+        {dataframe.to_html(index=False, escape=False)}
+    </body>
+    </html>
+    """
+    return html_content
 
 # --- LOGIN EKRANI ---
 if not st.session_state["logged_in"]:
@@ -183,9 +155,9 @@ st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
 st.markdown("---")
 
 if user["role"] == "admin":
-    tab1, tab2, tab3 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & PDF Raporu"])
+    tab1, tab2, tab3 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Rapor Oluştur"])
 else:
-    tab2, tab3 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & PDF Raporu"])
+    tab2, tab3 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & Rapor Oluştur"])
 
 # ---------------- TAB 1: FORM (Yalnızca Admin) ----------------
 if user["role"] == "admin":
@@ -207,7 +179,6 @@ if user["role"] == "admin":
             hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.5, key="f_hata")
             ph = st.number_input("P/H (Parça / Saat)", min_value=0.1, value=100.0, step=1.0, key="f_ph")
             
-            # Canlı Arka Plan Formülü: (Gelen Parti * (Hata Oranı / 100)) / P/H
             canli_islem_adet = gelen_parti * (hata_orani / 100.0)
             canli_hesaplanan_saat = round(canli_islem_adet / ph, 2) if ph > 0 else 0.0
             
@@ -346,7 +317,6 @@ with tab2:
 
             st.markdown("---")
             
-            # TEK TEK İLGİLİ SATIRI İNCELEME, GÜNCELLEME VE BİREYSEL SİLME
             col_bireysel, col_tumunu_sil = st.columns([2, 1])
             
             with col_bireysel:
@@ -434,7 +404,6 @@ with tab2:
                         st.rerun()
 
     else:
-        # Viewer (Mehmet Alaşar için salt okunur görünüm)
         st.subheader("📊 Kayıt Listesi (Salt Okunur)")
         st.dataframe(df, use_container_width=True)
         
@@ -447,14 +416,13 @@ with tab2:
             use_container_width=True
         )
 
-# ---------------- TAB 3: DASHBOARD & PDF RAPOR ----------------
+# ---------------- TAB 3: DASHBOARD & MÜŞTERİ RAPORU ----------------
 with tab3:
-    st.subheader("Genel Durum, Analiz Panosu & Müşteri PDF Raporu")
+    st.subheader("Genel Durum, Analiz Panosu & Müşteri Raporu")
     df = load_data()
     
     if not df.empty and not df.dropna(how='all').empty:
-        # MÜŞTERİYE ÖZEL PDF RAPORU OLUŞTURMA ALANI
-        st.markdown("### 📄 Tek Tıkla Müşteri Raporu Oluştur (PDF)")
+        st.markdown("### 📄 Tek Tıkla Müşteri Raporu Oluştur (HTML / Yazdırılabilir)")
         
         musteri_listesi = ["Tüm Müşteriler"] + df['Müşteri Adı'].dropna().unique().tolist()
         secilen_musteri = st.selectbox("Raporlanacak Müşteriyi Seçin:", options=musteri_listesi)
@@ -464,20 +432,20 @@ with tab3:
         else:
             rapor_df = df[df['Müşteri Adı'] == secilen_musteri]
             
-        pdf_data = create_pdf_report(rapor_df, secilen_musteri)
+        html_report = generate_customer_report(rapor_df, secilen_musteri)
         
         st.download_button(
-            label=f"📄 {secilen_musteri} İçin PDF Raporunu İndir",
-            data=pdf_data,
-            file_name=f"Kayip_Zaman_Raporu_{secilen_musteri}_{datetime.now().strftime('%Y%m%d')}.pdf",
-            mime="application/pdf",
+            label=f"📥 {secilen_musteri} İçin Raporu İndir (HTML / Tarayıcıda Aç)",
+            data=html_report,
+            file_name=f"Rapor_{secilen_musteri}_{datetime.now().strftime('%Y%m%d')}.html",
+            mime="text/html",
             use_container_width=True,
             type="primary"
         )
+        st.caption("ℹ️ İndirdiğiniz HTML raporuna çift tıklayarak tarayıcınızda açabilir, sağ tıklayıp **Yazdır (Print)** diyerek direkt **PDF olarak kaydedebilir** veya çıktısını alabilirsiniz.")
         
         st.markdown("---")
         
-        # METRİKLER
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Toplam Kayıt", f"{len(df)} Adet")
         
