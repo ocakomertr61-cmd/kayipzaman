@@ -70,16 +70,16 @@ def _fetch_data_from_sheet():
                 df[col] = None
         df = df[SUTUNLAR]
         
-        # Sayısal Değerleri Güvenli Float Dönüşümü
+        # Sayısal Değerleri Güvenli Dönüştürme (Virgülü noktaya çevir)
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if num_col in df.columns:
-                # Metin olarak kalmış olabilecek değerlerdeki virgülleri noktaya çevirip sayıya dönüştür
                 df[num_col] = (
                     df[num_col]
                     .astype(str)
-                    .str.replace(',', '.', regex=False)
+                    .str.replace('.', '', regex=False)  # Tablodan gelen binlik noktalarını temizle
+                    .str.replace(',', '.', regex=False)  # Virgülleri ondalık noktaya çevir
                 )
                 df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
         
@@ -106,10 +106,11 @@ def update_google_sheet(df):
         worksheet = spreadsheet.get_worksheet(0)
         
         df_to_write = df.copy()
-        # Sayısal sütunları saf float olarak yuvarla ve sakla (API sayı olarak kabul etsin)
+        # Google Sheets'e kaydederken ondalık sayıları virgüllü formata (26,92) çeviriyoruz ki tablo binlik sanmasın
         for col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if col in df_to_write.columns:
-                df_to_write[col] = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
+                numeric_series = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
+                df_to_write[col] = numeric_series.apply(lambda x: str(x).replace('.', ','))
                 
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
