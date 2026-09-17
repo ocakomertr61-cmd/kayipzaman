@@ -72,11 +72,12 @@ def _fetch_data_from_sheet():
         
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
-        # KESİN ÇÖZÜM: Tablodan gelen 15,77 gibi stringleri doğrudan 15.77 (float) yapıyoruz
+        # KESİN NET ÇÖZÜM: Tablodan okurken virgülü/noktayı temizle ve 100'e bölerek doğru ondalığı yakala
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if num_col in df.columns:
-                s = df[num_col].astype(str).str.strip().str.replace(',', '.', regex=False)
-                df[num_col] = pd.to_numeric(s, errors='coerce').fillna(0.0).round(2)
+                s = df[num_col].astype(str).str.strip().str.replace(',', '', regex=False).str.replace('.', '', regex=False)
+                numeric_vals = pd.to_numeric(s, errors='coerce').fillna(0.0) / 100.0
+                df[num_col] = numeric_vals.round(2)
         
         df['Gelen Parti Miktarı'] = pd.to_numeric(df['Gelen Parti Miktarı'], errors='coerce').fillna(0).astype(int)
         
