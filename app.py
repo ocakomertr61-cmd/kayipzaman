@@ -70,17 +70,16 @@ def _fetch_data_from_sheet():
                 df[col] = None
         df = df[SUTUNLAR]
         
-        # Sayısal Değerleri Doğru Dönüştürme (Ondalık Hassasiyet Koruması)
+        # Sayısal Değerleri Güvenli Float Dönüşümü
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if num_col in df.columns:
-                # Verideki olası virgül/nokta karmaşasını ve binlik ayraçlarını temizle
+                # Metin olarak kalmış olabilecek değerlerdeki virgülleri noktaya çevirip sayıya dönüştür
                 df[num_col] = (
                     df[num_col]
                     .astype(str)
-                    .str.replace('.', '', regex=False)  # Binlik ayraç olarak gelen noktaları kaldır
-                    .str.replace(',', '.', regex=False)  # Virgülleri ondalık noktaya çevir
+                    .str.replace(',', '.', regex=False)
                 )
                 df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
         
@@ -107,11 +106,10 @@ def update_google_sheet(df):
         worksheet = spreadsheet.get_worksheet(0)
         
         df_to_write = df.copy()
+        # Sayısal sütunları saf float olarak yuvarla ve sakla (API sayı olarak kabul etsin)
         for col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
             if col in df_to_write.columns:
-                # Sayıları yuvarla ve Google Sheets'e Türkçe ondalık formatında (virgüllü string) yazarak binlik nokta hatasını önle
-                numeric_series = pd.to_numeric(df_to_write[col], errors='coerce').round(2)
-                df_to_write[col] = numeric_series.apply(lambda x: f"{x:.2f}".replace('.', ',') if pd.notnull(x) else "")
+                df_to_write[col] = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
                 
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
@@ -342,8 +340,8 @@ if user["role"] == "admin":
                     "Duruş Nedeni": durus_nedeni,
                     "İşlem Açıklaması": islem_aciklamasi,
                     "Gelen Parti Miktarı": gelen_parti,
-                    "Hata Oranı (%)": hata_orani,
-                    "P/H": ph,
+                    "Hata Oranı (%)": float(hata_orani),
+                    "P/H": float(ph),
                     "Hesaplanan Zaman (Saat)": round(float(hesaplanan_zaman), 2),
                     "Kayıp Zaman (Saat)": round(float(kayip_zaman_saat), 2),
                     "Son Durum": son_durum,
@@ -376,7 +374,7 @@ with tab2:
                     "Seç": st.column_config.CheckboxColumn("Seç", default=False),
                     "ID": st.column_config.NumberColumn("ID", disabled=True),
                     "Dönem (Ay/Yıl)": st.column_config.SelectboxColumn("Dönem (Ay/Yıl)", options=DONEM_LISTESI, required=True),
-                    "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0.0, max_value=100.0, format="%.2f%%"),
+                    "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0.0, max_value=100.0, format="%.2f"),
                     "Hesaplanan Zaman (Saat)": st.column_config.NumberColumn("Hesaplanan Zaman (Saat)", format="%.2f"),
                     "Kayıp Zaman (Saat)": st.column_config.NumberColumn("Kayıp Zaman (Saat)", format="%.2f"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
@@ -479,10 +477,10 @@ with tab2:
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Seri No"] = g_seri
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Duruş Nedeni"] = g_neden
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Gelen Parti Miktarı"] = g_parti
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Hata Oranı (%)"] = g_hata
-                                clean_df.loc[clean_df['ID'] == secilen_id, "P/H"] = g_ph
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Hesaplanan Zaman (Saat)"] = round(g_hesaplanan, 2)
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = round(g_kayip, 2)
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Hata Oranı (%)"] = float(g_hata)
+                                clean_df.loc[clean_df['ID'] == secilen_id, "P/H"] = float(g_ph)
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Hesaplanan Zaman (Saat)"] = round(float(g_hesaplanan), 2)
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = round(float(g_kayip), 2)
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Son Durum"] = g_durum
                                 clean_df.loc[clean_df['ID'] == secilen_id, "İşlem Açıklaması"] = g_aciklama
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Etiket Görseli Linki"] = g_etiket
