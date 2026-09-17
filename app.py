@@ -131,93 +131,99 @@ if user["role"] == "admin":
     with tab1:
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
         
-        with st.form("kayip_zaman_formu", clear_on_submit=True):
-            col1, col2 = st.columns(2)
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            musteri_adi = st.text_input("Müşteri Adı *", key="f_musteri")
+            sorumlu_muhendis = st.text_input("Müşteri Sorumlu Mühendis Adı", key="f_muhendis")
+            irsaliye_no = st.text_input("İrsaliye No", key="f_irsaliye")
+            referans_no = st.text_input("Referans No *", key="f_ref")
+            seri_no = st.text_input("Seri No", key="f_seri")
+            durus_nedeni = st.selectbox("Duruş / Zaman Kaybı Nedeni *", DURUS_NEDENLERI, key="f_neden")
             
-            with col1:
-                musteri_adi = st.text_input("Müşteri Adı *")
-                sorumlu_muhendis = st.text_input("Müşteri Sorumlu Mühendis Adı")
-                irsaliye_no = st.text_input("İrsaliye No")
-                referans_no = st.text_input("Referans No *")
-                seri_no = st.text_input("Seri No")
-                durus_nedeni = st.selectbox("Duruş / Zaman Kaybı Nedeni *", DURUS_NEDENLERI)
+        with col2:
+            gelen_parti = st.number_input("Gelen Parti / Stok Miktarı (Adet)", min_value=1, value=1000, step=10, key="f_parti")
+            hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.5, key="f_hata")
+            
+            # Anlık dinamik hesaplama (Rerun ile canlı güncellenir)
+            otomatik_islem_miktari = int(gelen_parti * (hata_orani / 100.0))
+            
+            islem_gorecek_miktar = st.number_input(
+                "İşlem Görecek Miktar (Adet)", 
+                min_value=1, 
+                value=max(1, otomatik_islem_miktari), 
+                step=1,
+                key="f_islem_miktari"
+            )
+            ph = st.number_input("P/H (Parça / Saat)", min_value=0.1, value=100.0, step=1.0, key="f_ph")
+            
+            st.markdown("---")
+            # DİNAMİK HESAPLANAN SAAT MODU
+            zaman_modu = st.radio(
+                "⏱️ Hesaplanan Zaman Belirleme Yöntemi:",
+                ["🤖 Otomatik Formülle Hesapla (İşlem Miktarı / P/H)", "✍️ Manuel Zaman Gir"],
+                horizontal=True,
+                key="f_zaman_modu"
+            )
+            
+            otomatik_hesaplanan_zaman = round(islem_gorecek_miktar / ph, 2) if ph > 0 else 0.0
+            
+            if "Manuel" in zaman_modu:
+                hesaplanan_zaman = st.number_input("Hesaplanan Zaman (Saat) [Manuel]", min_value=0.0, value=otomatik_hesaplanan_zaman, step=0.1, key="f_hesaplanan_manuel")
+            else:
+                hesaplanan_zaman = otomatik_hesaplanan_zaman
+                st.success(f"🧮 Otomatik Hesaplanan Zaman: **{hesaplanan_zaman} Saat** (`{islem_gorecek_miktar} Adet / {ph} P/H`)")
                 
-            with col2:
-                gelen_parti = st.number_input("Gelen Parti / Stok Miktarı (Adet)", min_value=1, value=1000, step=10)
-                hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.5)
-                
-                # Otomatik Hesaplanan İşlem Görecek Miktar
-                hesaplanan_islem_miktari = int(gelen_parti * (hata_orani / 100.0))
-                islem_gorecek_miktar = st.number_input("İşlem Görecek Miktar (Adet)", min_value=1, value=max(1, hesaplanan_islem_miktari), step=1)
-                ph = st.number_input("P/H (Parça / Saat)", min_value=0.1, value=100.0, step=1.0)
-                
-                st.markdown("---")
-                # HESAPLANAN ZAMAN MODU SEÇİMİ
-                zaman_modu = st.radio(
-                    "⏱️ Hesaplanan Zaman Belirleme Yöntemi:",
-                    ["🤖 Otomatik Formülle Hesapla (İşlem Miktarı / P/H)", "✍️ Manuel Zaman Gir"],
-                    horizontal=True
-                )
-                
-                auto_zaman = round(islem_gorecek_miktar / ph, 2) if ph > 0 else 0.0
-                
-                if "Manuel" in zaman_modu:
-                    hesaplanan_zaman = st.number_input("Hesaplanan Zaman (Saat) [Manuel]", min_value=0.0, value=auto_zaman, step=0.1)
-                else:
-                    hesaplanan_zaman = auto_zaman
-                    st.info(f"Formüle Göre Otomatik Hesaplanan Zaman: **{hesaplanan_zaman} Saat**")
-                    
-                st.markdown("---")
-                kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=1.0, step=0.1)
-                son_durum = st.selectbox("Son Durum *", DURUM_OPSIYONLARI)
+            st.markdown("---")
+            kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=1.0, step=0.1, key="f_kayip")
+            son_durum = st.selectbox("Son Durum *", DURUM_OPSIYONLARI, key="f_durum")
 
-            islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...")
+        islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...", key="f_aciklama")
+        
+        c_link1, c_link2 = st.columns(2)
+        with c_link1:
+            hata_gorseli_link = st.text_input("Hata Görseli Linki (Google Drive / OneDrive vb.)", key="f_gorsel")
+        with c_link2:
+            onay_belgesi_link = st.text_input("Gelen Onay Belgesi Linki (Google Drive / OneDrive vb.)", key="f_onay")
             
-            c_link1, c_link2 = st.columns(2)
-            with c_link1:
-                hata_gorseli_link = st.text_input("Hata Görseli Linki (Google Drive / OneDrive vb.)")
-            with c_link2:
-                onay_belgesi_link = st.text_input("Gelen Onay Belgesi Linki (Google Drive / OneDrive vb.)")
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("💾 Kaydı Google Tabloya Kaydet", use_container_width=True, type="primary"):
+            if not musteri_adi or not referans_no:
+                st.error("Lütfen Müşteri Adı ve Referans No alanlarını doldurunuz!")
+            else:
+                mevcut_df = load_data()
                 
-            submit_btn = st.form_submit_button("💾 Kaydı Google Tabloya Kaydet", use_container_width=True)
-            
-            if submit_btn:
-                if not musteri_adi or not referans_no:
-                    st.error("Lütfen Müşteri Adı ve Referans No alanlarını doldurunuz!")
-                else:
-                    mevcut_df = load_data()
-                    
-                    valid_ids = mevcut_df['ID'].dropna()
-                    valid_ids = valid_ids[pd.to_numeric(valid_ids, errors='coerce').notnull()]
-                    yeni_id = int(valid_ids.max()) + 1 if not valid_ids.empty else 1
-                    
-                    bugun = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    
-                    yeni_kayit = pd.DataFrame([{
-                        "ID": yeni_id,
-                        "Tarih": bugun,
-                        "Müşteri Adı": musteri_adi,
-                        "Sorumlu Mühendis": sorumlu_muhendis,
-                        "İrsaliye No": irsaliye_no,
-                        "Referans No": referans_no,
-                        "Seri No": seri_no,
-                        "Duruş Nedeni": durus_nedeni,
-                        "İşlem Açıklaması": islem_aciklamasi,
-                        "Gelen Parti Miktarı": gelen_parti,
-                        "Hata Oranı (%)": hata_orani,
-                        "İşlem Görecek Miktar": islem_gorecek_miktar,
-                        "P/H": ph,
-                        "Hesaplanan Zaman (Saat)": hesaplanan_zaman,
-                        "Kayıp Zaman (Saat)": kayip_zaman_saat,
-                        "Son Durum": son_durum,
-                        "Hata Görseli Linki": hata_gorseli_link,
-                        "Onay Belgesi Linki": onay_belgesi_link
-                    }])
-                    
-                    guncel_df = pd.concat([mevcut_df, yeni_kayit], ignore_index=True)
-                    conn.update(spreadsheet=SHEET_URL, data=guncel_df)
-                    st.success(f"ID #{yeni_id} (Referans: {referans_no}) başarıyla kaydedildi!")
-                    st.rerun()
+                valid_ids = mevcut_df['ID'].dropna()
+                valid_ids = valid_ids[pd.to_numeric(valid_ids, errors='coerce').notnull()]
+                yeni_id = int(valid_ids.max()) + 1 if not valid_ids.empty else 1
+                
+                bugun = datetime.now().strftime("%Y-%m-%d %H:%M")
+                
+                yeni_kayit = pd.DataFrame([{
+                    "ID": yeni_id,
+                    "Tarih": bugun,
+                    "Müşteri Adı": musteri_adi,
+                    "Sorumlu Mühendis": sorumlu_muhendis,
+                    "İrsaliye No": irsaliye_no,
+                    "Referans No": referans_no,
+                    "Seri No": seri_no,
+                    "Duruş Nedeni": durus_nedeni,
+                    "İşlem Açıklaması": islem_aciklamasi,
+                    "Gelen Parti Miktarı": gelen_parti,
+                    "Hata Oranı (%)": hata_orani,
+                    "İşlem Görecek Miktar": islem_gorecek_miktar,
+                    "P/H": ph,
+                    "Hesaplanan Zaman (Saat)": hesaplanan_zaman,
+                    "Kayıp Zaman (Saat)": kayip_zaman_saat,
+                    "Son Durum": son_durum,
+                    "Hata Görseli Linki": hata_gorseli_link,
+                    "Onay Belgesi Linki": onay_belgesi_link
+                }])
+                
+                guncel_df = pd.concat([mevcut_df, yeni_kayit], ignore_index=True)
+                conn.update(spreadsheet=SHEET_URL, data=guncel_df)
+                st.success(f"ID #{yeni_id} (Referans: {referans_no}) başarıyla kaydedildi! (Hesaplanan Zaman: {hesaplanan_zaman} Saat)")
+                st.rerun()
 
 # ---------------- TAB 2: GÖRÜNTÜLEME VE YÖNETİM ----------------
 with tab2:
