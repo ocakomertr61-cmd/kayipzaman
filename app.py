@@ -66,8 +66,8 @@ def get_gspread_client():
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
 
-# --- ANA TABLO (guncel) İŞLEMLERİ ---
-@st.cache_data(ttl=600, show_spinner="Google Sheets'ten veriler yükleniyor...")
+# --- ANA TABLO (guncel) İŞLEMLERİ (ttl=0 ile anlık güncellenir) ---
+@st.cache_data(ttl=0, show_spinner="Google Sheets'ten veriler yükleniyor...")
 def load_data_cached():
     try:
         client = get_gspread_client()
@@ -136,7 +136,7 @@ def update_google_sheet(df):
         return False
 
 # --- GEÇMİŞ DÖNEM (gecmisdonem) İŞLEMLERİ ---
-@st.cache_data(ttl=600, show_spinner="Geçmiş dönem verileri yükleniyor...")
+@st.cache_data(ttl=0, show_spinner="Geçmiş dönem verileri yükleniyor...")
 def load_gecmis_data_cached():
     varsayilan_liste = [
         {"ID": 1, "DÖNEM": "Şubat 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Süreç başlangıcı", "GENEL AÇIKLAMA": "Başlangıç"},
@@ -204,7 +204,7 @@ def update_gecmis_google_sheet(liste_veri):
         return False
 
 # --- ÖDEME TAHSİLAT İŞLEMLERİ ---
-@st.cache_data(ttl=600, show_spinner="Ödeme tahsilat verileri yükleniyor...")
+@st.cache_data(ttl=0, show_spinner="Ödeme tahsilat verileri yükleniyor...")
 def load_odeme_data_cached():
     varsayilan_odeme = [
         {"ID": 1, "MÜŞTERİ ADI": "Legrand (Geçmiş Devir)", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇIKLAMA NOTLAR": "Şubat dönemi geçmiş devir ödemesi.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 120000.00},
