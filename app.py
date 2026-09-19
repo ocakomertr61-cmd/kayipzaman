@@ -55,7 +55,6 @@ def get_gspread_client():
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
 
-# --- KOTA KORUMASI İÇİN CACHE MEKANİZMASI ---
 @st.cache_data(ttl=600, show_spinner="Google Sheets'ten veriler yükleniyor...")
 def load_data_cached():
     return _fetch_data_from_sheet()
@@ -188,7 +187,11 @@ if "odeme_kayitlari" not in st.session_state:
             "İşlem Tarihi": "19.09.2026",
             "Dönem": "Eylül 2026",
             "Müşteri Adı": "Legrand (Örnek)",
-            "Yatan Tutar (TL / Döviz)": "15.420,00 TL",
+            "Tutar": 155252.00,
+            "Para Birimi": "TL (₺)",
+            "Kur": 1.0,
+            "TL Karşılığı": 155252.00,
+            "Gösterim": "155.252,00 TL (₺)",
             "Açıklama": "Eylül ayı fatura tahsilatı alındı.",
             "Kaydeden": "Muhasebe Birimi"
         }
@@ -264,6 +267,14 @@ def generate_customer_report(dataframe, filtered_customer, filtered_donem, selec
     """
     return html_content
 
+def format_para(tutar, birim):
+    try:
+        tutar_val = float(tutar)
+        formatted = f"{tutar_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"{formatted} {birim}"
+    except:
+        return f"{tutar} {birim}"
+
 # --- LOGIN EKRANI (SEÇMELİ KULLANICI ADI) ---
 if not st.session_state["logged_in"]:
     st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
@@ -331,7 +342,7 @@ st.markdown("---")
 
 df = load_data()
 
-# Sekme Yapısı (Rollerine Göre Doğrudan Tanımlı)
+# Sekme Yapısı
 if user["role"] == "admin":
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "➕ Yeni Kayıp Zaman Kaydı Ekle", 
@@ -360,7 +371,7 @@ else:
         "ℹ️ Bilgi"
     ])
 
-# ---------------- TAB 1: FORM / MUHASEBE GİRİŞİ / SALT OKUNUR LİSTE ----------------
+# ---------------- TAB 1 ----------------
 with tab1:
     if user["role"] == "admin":
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
@@ -471,35 +482,46 @@ with tab1:
                     st.rerun()
 
     elif user["role"] == "accounting":
-        st.subheader("💰 Yeni Müşteri Ödemesi / Tahsilatı Gir")
-        st.markdown("Müşteriden gelen ödemeleri buraya girerek Ömer Bey, Mehmet Bey, Dilber Hanım ve Hakan Bey'in panellerine anında iletebilirsiniz.")
+        st.subheader("💰 Yeni Müşteri Ödemesi / Tahsilat Girişi (Döviz & Kur Hesaplamalı)")
+        st.markdown("Tutarı doğru formatta girip para birimini seçerek güncel kur üzerinden TL ve döviz karşılıklarını otomatik hesaplayabilirsiniz.")
         
         with st.form("muhasebe_odeme_form", clear_on_submit=True):
-            col_m1, col_m2 = st.columns(2)
+            col_m1, col_m2, col_m3 = st.columns(3)
             with col_m1:
                 muh_donem = st.selectbox("Dönem Seçin (Ay / Yıl) *", options=DONEM_LISTESI, index=8, key="muh_donem_sec")
-                muh_musteri = st.text_input("Müşteri Adı *", placeholder="Örn: Legrand / Schneider vb.", key="muh_musteri_adi")
+                muh_musteri = st.text_input("Müşteri Adı *", placeholder="Örn: Legrand", key="muh_musteri_adi")
             with col_m2:
-                muh_tutar = st.text_input("Yatan Tutar (TL / Döviz) *", placeholder="Örn: 25.000,00 TL", key="muh_tutar_val")
+                muh_tutar = st.number_input("Yatan Tutar *", min_value=0.0, value=155252.00, step=100.0, format="%.2f", key="muh_tutar_val")
+                muh_para_birimi = st.selectbox("Para Birimi", options=["TL (₺)", "USD ($)", "EUR (€)"], key="muh_pb")
+            with col_m3:
+                muh_kur = st.number_input("Güncel TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
                 muh_tarih = st.text_input("Ödeme Tarihi", value=datetime.now().strftime("%d.%m.%Y"), key="muh_tarih_val")
                 
-            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Fatura no, banka açıklaması veya yönetim kadrosuna iletmek istediğiniz bir not varsa...", key="muh_aciklama_val")
+            hesaplanan_tl = muh_tutar if "TL" in muh_para_birimi else muh_tutar * muh_kur
+            st.info(f"🧮 **Otomatik Hesaplanan TL Karşılığı:** {hesaplanan_tl:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+
+            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Fatura no, banka dekontu veya ek açıklamalar...", key="muh_aciklama_val")
             
             btn_odeme_kaydet = st.form_submit_button("💾 Ödeme Bilgisini Yönetime İlet", use_container_width=True, type="primary")
             
             if btn_odeme_kaydet:
-                if not muh_musteri.strip() or not muh_tutar.strip():
-                    st.error("Lütfen Müşteri Adı ve Yatan Tutar alanlarını doldurunuz!")
+                if not muh_musteri.strip() or muh_tutar <= 0:
+                    st.error("Lütfen geçerli bir Müşteri Adı ve Tutar giriniz!")
                 else:
+                    gosterim_str = format_para(muh_tutar, muh_para_birimi)
                     st.session_state["odeme_kayitlari"].insert(0, {
                         "İşlem Tarihi": muh_tarih,
                         "Dönem": muh_donem,
                         "Müşteri Adı": muh_musteri.strip(),
-                        "Yatan Tutar (TL / Döviz)": muh_tutar.strip(),
+                        "Tutar": muh_tutar,
+                        "Para Birimi": muh_para_birimi,
+                        "Kur": muh_kur,
+                        "TL Karşılığı": hesaplanan_tl,
+                        "Gösterim": gosterim_str,
                         "Açıklama": muh_aciklama.strip() if muh_aciklama.strip() else "Açıklama girilmedi.",
                         "Kaydeden": user["name"]
                     })
-                    st.success("Ödeme bilgisi başarıyla muhasebe sistemine işlendi ve yönetim kadrosuna iletildi!")
+                    st.success("Ödeme bilgisi başarıyla işlendi ve yönetim kadrosuna iletildi!")
                     st.rerun()
     else:
         st.subheader("📊 Kayıt Listesi (Salt Okunur)")
@@ -508,12 +530,10 @@ with tab1:
 # ---------------- TAB 2: YÖNETİM ----------------
 with tab2:
     df = load_data()
-        
     if user["role"] == "admin":
         st.subheader("📊 Kayıt Yönetimi (Düzenle & Toplu/Tekli Sil)")
-        
         if df.empty or df.dropna(how='all').empty:
-            st.info("Henüz kayıtlı bir veri bulunmuyor.")
+            st.info("Henüz kayıtlı veri bulunmuyor.")
         else:
             if "Seç" not in df.columns:
                 df.insert(0, "Seç", False)
@@ -540,163 +560,60 @@ with tab2:
             )
             
             c_kaydet, c_toplu_sil, c_indir = st.columns([1.2, 1.2, 1])
-            
             with c_kaydet:
                 if st.button("🔄 Tablo Değişikliklerini Kaydet", use_container_width=True):
                     clean_df = edited_df.drop(columns=["Seç"], errors="ignore")
                     if update_google_sheet(clean_df):
-                        st.success("Tablo değişiklikleri başarıyla kaydedildi!")
+                        st.success("Tablo değişiklikleri kaydedildi!")
                         st.rerun()
-                    
             with c_toplu_sil:
                 if st.button("🔴 Seçili Kayıtları Toplu Sil", use_container_width=True, type="primary"):
                     secilenler = edited_df[edited_df["Seç"] == True]
                     if secilenler.empty:
-                        st.warning("Lütfen silmek istediğiniz satırların solundaki 'Seç' kutucuğunu işaretleyin!")
+                        st.warning("Seçim yapmadınız!")
                     else:
-                        silinecek_id_listesi = secilenler["ID"].tolist()
                         kalan_df = edited_df[edited_df["Seç"] == False].drop(columns=["Seç"], errors="ignore")
                         if update_google_sheet(kalan_df):
-                            st.success(f"Seçilen {len(silinecek_id_listesi)} adet kayıt başarıyla silindi!")
+                            st.success("Seçilen kayıtlar silindi!")
                             st.rerun()
-                        
             with c_indir:
                 download_df = df.drop(columns=["Seç"], errors="ignore")
                 csv_data = download_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(
-                    label="📥 Excel / CSV İndir",
-                    data=csv_data,
-                    file_name=f"kayip_zaman_takip_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
+                st.download_button("📥 CSV İndir", data=csv_data, file_name="kayip_zaman.csv", mime="text/csv", use_container_width=True)
 
             st.markdown("---")
+            st.subheader("🎯 Bireysel Satır Düzenleme & Doküman Ön İzleme")
+            id_listesi = df['ID'].dropna().astype(int).unique().tolist()
+            secilen_id = st.selectbox("ID Numarası Seçin:", options=id_listesi) if id_listesi else None
             
-            col_bireysel, col_tumunu_sil = st.columns([2, 1])
-            
-            with col_bireysel:
-                st.subheader("🎯 Bireysel Satır Düzenleme & Doküman Ön İzleme")
-                id_listesi = df['ID'].dropna().astype(int).unique().tolist()
-                secilen_id = st.selectbox("ID Numarası Seçin:", options=id_listesi) if id_listesi else None
+            if secilen_id:
+                satir = df[df['ID'] == secilen_id].iloc[0]
+                l_irs = str(satir.get("İrsaliye Görseli Linki", ""))
+                l_et  = str(satir.get("Etiket Görseli Linki", ""))
+                l_hat = str(satir.get("Hata Görseli Linki", ""))
+                l_ony = str(satir.get("Onay Belgesi Linki", ""))
                 
-                if secilen_id:
-                    satir = df[df['ID'] == secilen_id].iloc[0]
-                    
-                    st.markdown(f"**📂 ID #{secilen_id} &mdash; {satir['Müşteri Adı']} ({satir['Referans No']}) Doküman Ön İzlemesi:**")
-                    l_irs = str(satir.get("İrsaliye Görseli Linki", ""))
-                    l_et  = str(satir.get("Etiket Görseli Linki", ""))
-                    l_hat = str(satir.get("Hata Görseli Linki", ""))
-                    l_ony = str(satir.get("Onay Belgesi Linki", ""))
-                    
-                    col_p0, col_p1, col_p2, col_p3 = st.columns(4)
-                    with col_p0:
-                        if l_irs and l_irs.startswith("http"):
-                            st.markdown(f"[📦 İrsaliye Görselini Aç]({l_irs})", unsafe_allow_html=True)
-                        else:
-                            st.caption("📦 İrsaliye Linki Yok")
-                    with col_p1:
-                        if l_et and l_et.startswith("http"):
-                            st.markdown(f"[🏷️ Etiket Görselini Aç]({l_et})", unsafe_allow_html=True)
-                        else:
-                            st.caption("🏷️ Etiket Linki Yok")
-                    with col_p2:
-                        if l_hat and l_hat.startswith("http"):
-                            st.markdown(f"[📷 Hata Görselini Aç]({l_hat})", unsafe_allow_html=True)
-                        else:
-                            st.caption("📷 Hata Linki Yok")
-                    with col_p3:
-                        if l_ony and l_ony.startswith("http"):
-                            st.markdown(f"[📄 Onay Belgesini Aç]({l_ony})", unsafe_allow_html=True)
-                        else:
-                            st.caption("📄 Onay Belgesi Yok")
-                    
-                    with st.expander(f"✏️ ID #{secilen_id} Detaylarını Düzenle / Sil", expanded=False):
-                        with st.form(f"form_guncelle_{secilen_id}"):
-                            mevcut_tur = str(satir.get("Kayıp Zaman Türü", ""))
-                            idx_tur = KAYIP_ZAMAN_TURU_OPSIYONLARI.index(mevcut_tur) if mevcut_tur in KAYIP_ZAMAN_TURU_OPSIYONLARI else 0
-                            g_tur = st.selectbox("Kayıp Zaman Türü", KAYIP_ZAMAN_TURU_OPSIYONLARI, index=idx_tur)
-                            
-                            c1, c2, c3 = st.columns(3)
-                            with c1:
-                                mevcut_satir_donem = str(satir["Dönem (Ay/Yıl)"]).strip()
-                                idx_donem = DONEM_LISTESI.index(mevcut_satir_donem) if mevcut_satir_donem in DONEM_LISTESI else 8
-                                g_donem = st.selectbox("Dönem (Ay/Yıl)", DONEM_LISTESI, index=idx_donem)
-                                
-                                g_musteri = st.text_input("Müşteri Adı", value=str(satir["Müşteri Adı"] if pd.notna(satir["Müşteri Adı"]) else ""))
-                                g_muhendis = st.text_input("Sorumlu Mühendis", value=str(satir["Sorumlu Mühendis"] if pd.notna(satir["Sorumlu Mühendis"]) else ""))
-                                g_irsaliye = st.text_input("İrsaliye No", value=str(satir["İrsaliye No"] if pd.notna(satir["İrsaliye No"]) else ""))
-                                g_ref = st.text_input("Referans No", value=str(satir["Referans No"] if pd.notna(satir["Referans No"]) else ""))
-                            
-                            with c2:
-                                g_seri = st.text_input("Seri No", value=str(satir["Seri No"] if pd.notna(satir["Seri No"]) else ""))
-                                idx_neden = DURUS_NEDENLERI.index(satir["Duruş Nedeni"]) if satir["Duruş Nedeni"] in DURUS_NEDENLERI else 0
-                                g_neden = st.selectbox("Duruş Nedeni", DURUS_NEDENLERI, index=idx_neden)
-                                g_parti = st.number_input("Gelen Parti", value=int(satir["Gelen Parti Miktarı"]) if pd.notna(satir["Gelen Parti Miktarı"]) else 1000)
-                                g_hata = st.number_input("Hata Oranı (%)", value=float(satir["Hata Oranı (%)"]) if pd.notna(satir["Hata Oranı (%)"]) else 10.0, format="%.2f")
-                                g_ph = st.number_input("P/H", value=float(satir["P/H"]) if pd.notna(satir["P/H"]) else 100.0, format="%.2f")
-                            
-                            with c3:
-                                g_hesaplanan = st.number_input("Hesaplanan Zaman", value=float(satir["Hesaplanan Zaman (Saat)"]) if pd.notna(satir["Hesaplanan Zaman (Saat)"]) else 1.0, format="%.2f")
-                                g_kayip = st.number_input("Kayıp Zaman", value=float(satir["Kayıp Zaman (Saat)"]) if pd.notna(satir["Kayıp Zaman (Saat)"]) else 1.0, format="%.2f")
-                                idx_durum = DURUM_OPSIYONLARI.index(satir["Son Durum"]) if satir["Son Durum"] in DURUM_OPSIYONLARI else 0
-                                g_durum = st.selectbox("Son Durum", DURUM_OPSIYONLARI, index=idx_durum)
-                            
-                            g_aciklama = st.text_area("İşlem Açıklaması", value=str(satir["İşlem Açıklaması"] if pd.notna(satir["İşlem Açıklaması"]) else ""))
-                            
-                            g_irs_link = st.text_input("İrsaliye Görseli Linki", value=l_irs)
-                            g_etiket = st.text_input("Etiket Görseli Linki", value=l_et)
-                            g_gorsel = st.text_input("Hata Görseli Linki", value=l_hat)
-                            g_onay = st.text_input("Onay Belgesi Linki", value=l_ony)
-                            
-                            col_update, col_delete = st.columns(2)
-                            with col_update:
-                                btn_update = st.form_submit_button("✏️ Güncelle", use_container_width=True)
-                            with col_delete:
-                                btn_delete = st.form_submit_button("🗑️ Sil", use_container_width=True)
-                                
-                            if btn_update:
-                                clean_df = df.drop(columns=["Seç"], errors="ignore")
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman Türü"] = g_tur
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Dönem (Ay/Yıl)"] = g_donem
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Müşteri Adı"] = g_musteri
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Sorumlu Mühendis"] = g_muhendis
-                                clean_df.loc[clean_df['ID'] == secilen_id, "İrsaliye No"] = g_irsaliye
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Referans No"] = g_ref
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Seri No"] = g_seri
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Duruş Nedeni"] = g_neden
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Gelen Parti Miktarı"] = g_parti
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Hata Oranı (%)"] = float(g_hata)
-                                clean_df.loc[clean_df['ID'] == secilen_id, "P/H"] = float(g_ph)
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Hesaplanan Zaman (Saat)"] = round(float(g_hesaplanan), 2)
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = round(float(g_kayip), 2)
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Son Durum"] = g_durum
-                                clean_df.loc[clean_df['ID'] == secilen_id, "İşlem Açıklaması"] = g_aciklama
-                                clean_df.loc[clean_df['ID'] == secilen_id, "İrsaliye Görseli Linki"] = g_irs_link
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Etiket Görseli Linki"] = g_etiket
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Hata Görseli Linki"] = g_gorsel
-                                clean_df.loc[clean_df['ID'] == secilen_id, "Onay Belgesi Linki"] = g_onay
-                                
-                                if update_google_sheet(clean_df):
-                                    st.success("Güncellendi!")
-                                    st.rerun()
-                                
-                            if btn_delete:
-                                clean_df = df.drop(columns=["Seç"], errors="ignore")
-                                guncel_df = clean_df[clean_df['ID'] != secilen_id]
-                                if update_google_sheet(guncel_df):
-                                    st.warning("Silindi!")
-                                    st.rerun()
-
-            with col_tumunu_sil:
-                st.subheader("⚠️ Tabloyu Temizle")
-                with st.expander("🚨 Tüm Verileri Sıfırla"):
-                    onay = st.checkbox("Evet, tüm kayıtları sil.")
-                    if st.button("⚠️ Tüm Tabloyu Sil", type="primary") and onay:
-                        bos_df = pd.DataFrame(columns=SUTUNLAR)
-                        if update_google_sheet(bos_df):
-                            st.success("Sıfırlandı!")
-                            st.rerun()
+                col_p0, col_p1, col_p2, col_p3 = st.columns(4)
+                with col_p0:
+                    if l_irs.startswith("http"): st.markdown(f"[📦 İrsaliye]({l_irs})")
+                with col_p1:
+                    if l_et.startswith("http"): st.markdown(f"[🏷️ Etiket]({l_et})")
+                with col_p2:
+                    if l_hat.startswith("http"): st.markdown(f"[📷 Hata]({l_hat})")
+                with col_p3:
+                    if l_ony.startswith("http"): st.markdown(f"[📄 Onay]({l_ony})")
+                
+                with st.expander(f"✏️ ID #{secilen_id} Detaylarını Düzenle"):
+                    with st.form(f"form_guncelle_{secilen_id}"):
+                        g_musteri = st.text_input("Müşteri Adı", value=str(satir["Müşteri Adı"]))
+                        g_kayip = st.number_input("Kayıp Zaman", value=float(satir["Kayıp Zaman (Saat)"]))
+                        if st.form_submit_button("Güncelle"):
+                            clean_df = df.drop(columns=["Seç"], errors="ignore")
+                            clean_df.loc[clean_df['ID'] == secilen_id, "Müşteri Adı"] = g_musteri
+                            clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = g_kayip
+                            if update_google_sheet(clean_df):
+                                st.success("Güncellendi!")
+                                st.rerun()
     else:
         st.subheader("📊 Kayıt Listesi")
         st.dataframe(df, use_container_width=True)
@@ -705,300 +622,99 @@ with tab2:
 with tab3:
     st.subheader("Analiz Panosu & Dönemsel Müşteri Raporu")
     df = load_data()
-    
     manuel_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
     
-    # --- TÜM ZAMANLAR KÜMÜLATİF HESAPLAMALAR ---
-    aktif_talep_toplam = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
-    aktif_onay_toplam = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
+    aktif_talep = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
+    aktif_onay = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
     
-    manuel_talep_toplam = pd.to_numeric(manuel_df['Talep Edilen Kayıp Zaman (Saat)'], errors='coerce').sum()
-    manuel_onay_toplam = pd.to_numeric(manuel_df['Onaylanan Kayıp Zaman (Saat)'], errors='coerce').sum()
+    m_talep = pd.to_numeric(manuel_df['Talep Edilen Kayıp Zaman (Saat)'], errors='coerce').sum()
+    m_onay = pd.to_numeric(manuel_df['Onaylanan Kayıp Zaman (Saat)'], errors='coerce').sum()
     
-    tum_zamanlar_talep = aktif_talep_toplam + manuel_talep_toplam
-    tum_zamanlar_onay = aktif_onay_toplam + manuel_onay_toplam
-    
-    # --- TÜM ZAMANLAR ÜST ÖZET KARTLARI ---
     st.markdown("### 🌐 Tüm Zamanlar Genel Kümülatif Özet (Geçmiş + Aktif Sistem)")
     tz1, tz2 = st.columns(2)
-    tz1.metric("Tüm Zamanlar Toplam Talep Edilen Kayıp Zaman", f"{tum_zamanlar_talep:.2f} Saat")
-    tz2.metric("Tüm Zamanlar Toplam Onaylanan Kayıp Zaman", f"{tum_zamanlar_onay:.2f} Saat")
+    tz1.metric("Toplam Talep Edilen Kayıp Zaman", f"{aktif_talep + m_talep:.2f} Saat")
+    tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
     st.markdown("---")
-    
     if not df.empty and not df.dropna(how='all').empty:
-        st.markdown("### 🔍 Dönem ve Müşteri Filtreleme (Aktif Sistem Verileri İçin)")
-        col_f_ust1, col_f_ust2 = st.columns(2)
-        
         mevcut_donemler = sorted(df['Dönem (Ay/Yıl)'].dropna().unique().tolist())
-        if not mevcut_donemler:
-            mevcut_donemler = ["Eylül 2026"]
-            
-        default_idx = mevcut_donemler.index("Eylül 2026") if "Eylül 2026" in mevcut_donemler else 0
-        
-        with col_f_ust1:
-            secilen_analiz_donemi = st.selectbox("Dönem Seçin:", options=mevcut_donemler, index=default_idx, key="analiz_donem_sec")
-            
-        with col_f_ust2:
-            analiz_musteri_listesi = ["Tüm Müşteriler"] + sorted(df['Müşteri Adı'].dropna().unique().tolist())
-            secilen_analiz_musteri = st.selectbox("Müşteri Seçin:", options=analiz_musteri_listesi, key="analiz_musteri_sec")
-            
+        secilen_analiz_donemi = st.selectbox("Dönem Seçin:", options=mevcut_donemler if mevcut_donemler else ["Eylül 2026"])
         filtrelenmis_df = df[df['Dönem (Ay/Yıl)'] == secilen_analiz_donemi]
-        if secilen_analiz_musteri != "Tüm Müşteriler":
-            filtrelenmis_df = filtrelenmis_df[filtrelenmis_df['Müşteri Adı'] == secilen_analiz_musteri]
-            
-        toplam_hesaplanan_sure = pd.to_numeric(filtrelenmis_df['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
-        gosterilecek_musteri_adi = secilen_analiz_musteri if secilen_analiz_musteri != "Tüm Müşteriler" else "Tüm Müşteriler"
         
-        # --- ÜST ÖZET BANNER ---
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #1f77b4, #2ca02c); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h3 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">{secilen_analiz_donemi} &mdash; {toplam_hesaplanan_sure:.2f} Saat &mdash; {gosterilecek_musteri_adi}</h3>
-            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Seçilen kriterlere ait toplam hesaplanan zaman özetidir.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        toplam_sure = pd.to_numeric(filtrelenmis_df['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
+        st.metric("Seçilen Dönem Toplam Hesaplanan Zaman", f"{toplam_sure:.2f} Saat")
         
-        st.markdown("### 📄 Rapor İndirme Aracı")
-        col_r1, col_r2 = st.columns(2)
-        with col_r1:
-            rapor_musteri_secim = st.selectbox("Rapor için Müşteri:", options=analiz_musteri_listesi, key="rapor_musteri")
-        with col_r2:
-            varsayilan_sutunlar = [c for c in ["Tarih", "Kayıp Zaman Türü", "Dönem (Ay/Yıl)", "Müşteri Adı", "Referans No", "Duruş Nedeni", "Hesaplanan Zaman (Saat)", "Son Durum"] if c in df.columns]
-            secilen_sutunlar = st.multiselect(
-                "Raporda Görünmesini İstediğiniz Sütunlar:",
-                options=df.columns.tolist(),
-                default=varsayilan_sutunlar,
-                key="rapor_sutunlar"
-            )
-        
-        rapor_hedef_df = df[df['Dönem (Ay/Yıl)'] == secilen_analiz_donemi]
-        if rapor_musteri_secim != "Tüm Müşteriler":
-            rapor_hedef_df = rapor_hedef_df[rapor_hedef_df['Müşteri Adı'] == rapor_musteri_secim]
-        
-        if not secilen_sutunlar:
-            st.warning("⚠️ Lütfen raporda görünmesi için en az bir sütun seçin!")
-        else:
-            html_report = generate_customer_report(rapor_hedef_df, rapor_musteri_secim, secilen_analiz_donemi, secilen_sutunlar, manuel_df)
-            
-            st.download_button(
-                label=f"📥 {secilen_analiz_donemi} Dönemi ve Geçmiş Özet Raporunu İndir (HTML / Tarayıcıda Aç)",
-                data=html_report,
-                file_name=f"Rapor_{rapor_musteri_secim}_{secilen_analiz_donemi.replace(' ', '_')}.html",
-                mime="text/html",
-                use_container_width=True,
-                type="primary"
-            )
-            st.caption("ℹ️ İndirdiğiniz rapora çift tıklayarak tarayıcınızda açabilir, klavyeden **Ctrl+P** tuşlarına basarak doğrudan **PDF olarak kaydedebilirsiniz**.")
-        
-        st.markdown("---")
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric(f"Toplam Kayıt ({secilen_analiz_donemi})", len(filtrelenmis_df))
-        m2.metric("Toplam Hesaplanan Zaman", f"{toplam_hesaplanan_sure:.2f} Saat")
-        
-        onaylanan_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
-        m3.metric("Onaylanan Süre", f"{onaylanan_sure:.2f} Saat")
-        
-        bekleyen_sure = pd.to_numeric(filtrelenmis_df.loc[filtrelenmis_df['Son Durum'] == 'Mail Atıldı', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum()
-        m4.metric("Bekleyen Süre", f"{bekleyen_sure:.2f} Saat")
-        
-        st.markdown("---")
-        st.markdown("### 📁 Geçmiş Dönem Manuel Özet Raporu (Şubat 2026 - Ağustos 2026)")
-        st.caption("Geçmiş 7 aylık sürece ait talep edilen ve onaylanan kayıp zaman özetleri aşağıda listelenmiştir.")
-        st.dataframe(manuel_df, use_container_width=True)
-        
-        st.markdown("---")
-        st.write("### 📊 Görsel Analiz Panosu & Dağılımlar")
-        
+        st.markdown("### 📊 Görsel Dağılımlar")
         if not filtrelenmis_df.empty:
-            c_graf1, c_graf2 = st.columns(2)
-            
-            with c_graf1:
-                st.markdown("**🏢 Müşteri Bazlı Hesaplanan Zaman Dağılımı**")
-                g_data_musteri = filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum().reset_index()
-                if not g_data_musteri.empty:
-                    fig_musteri = px.bar(
-                        g_data_musteri, 
-                        x='Müşteri Adı', 
-                        y='Hesaplanan Zaman (Saat)', 
-                        text_auto='.2f',
-                        color='Müşteri Adı',
-                        color_discrete_sequence=px.colors.qualitative.Prism
-                    )
-                    fig_musteri.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20), height=320)
-                    st.plotly_chart(fig_musteri, use_container_width=True)
-                else:
-                    st.info("Veri bulunmuyor.")
-                    
-            with c_graf2:
-                st.markdown("**⚙️ Duruş Nedenlerine Göre Zaman Kayıpları**")
-                g_data_neden = filtrelenmis_df.groupby('Duruş Nedeni')['Hesaplanan Zaman (Saat)'].sum().reset_index()
-                if not g_data_neden.empty:
-                    g_data_neden = g_data_neden.sort_values(by='Hesaplanan Zaman (Saat)', ascending=True)
-                    fig_neden = px.bar(
-                        g_data_neden, 
-                        x='Hesaplanan Zaman (Saat)', 
-                        y='Duruş Nedeni', 
-                        orientation='h',
-                        text_auto='.2f',
-                        color='Duruş Nedeni',
-                        color_discrete_sequence=px.colors.qualitative.Safe
-                    )
-                    fig_neden.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20), height=320)
-                    st.plotly_chart(fig_neden, use_container_width=True)
-                else:
-                    st.info("Veri bulunmuyor.")
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            c_graf3, c_graf4 = st.columns(2)
-            
-            with c_graf3:
-                st.markdown("**📌 Son Durum Dağılımı (Onay / Bekleyen / Red vb.)**")
-                g_data_durum = filtrelenmis_df.groupby('Son Durum')['Hesaplanan Zaman (Saat)'].sum().reset_index()
-                if not g_data_durum.empty:
-                    fig_durum = px.pie(
-                        g_data_durum, 
-                        names='Son Durum', 
-                        values='Hesaplanan Zaman (Saat)', 
-                        hole=0.4,
-                        color_discrete_sequence=px.colors.sequential.Tealgrn
-                    )
-                    fig_durum.update_layout(margin=dict(t=20, b=20, l=20, r=20), height=320)
-                    st.plotly_chart(fig_durum, use_container_width=True)
-                else:
-                    st.info("Veri bulunmuyor.")
-                    
-            with c_graf4:
-                st.markdown("**👷 Sorumlu Mühendis Bazlı İş Yükü Dağılımı**")
-                g_data_muh = filtrelenmis_df.groupby('Sorumlu Mühendis')['Hesaplanan Zaman (Saat)'].sum().reset_index()
-                if not g_data_muh.empty and g_data_muh['Sorumlu Mühendis'].sum() != "":
-                    fig_muh = px.bar(
-                        g_data_muh,
-                        x='Sorumlu Mühendis',
-                        y='Hesaplanan Zaman (Saat)',
-                        text_auto='.2f',
-                        color='Sorumlu Mühendis',
-                        color_discrete_sequence=px.colors.qualitative.Bold
-                    )
-                    fig_muh.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20), height=320)
-                    st.plotly_chart(fig_muh, use_container_width=True)
-                else:
-                    st.info("Mühendis bilgisi girilmiş kayıt bulunmuyor.")
-        else:
-            st.info("Bu dönemde analiz edilecek veri bulunmuyor.")
-    else:
-        st.info("Henüz analiz edilecek veri bulunmuyor.")
+            cg1, cg2 = st.columns(2)
+            with cg1:
+                g_mus = filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum().reset_index()
+                fig_m = px.bar(g_mus, x='Müşteri Adı', y='Hesaplanan Zaman (Saat)', title="Müşteri Bazlı Dağılım")
+                st.plotly_chart(fig_m, use_container_width=True)
+            with cg2:
+                g_ned = filtrelenmis_df.groupby('Duruş Nedeni')['Hesaplanan Zaman (Saat)'].sum().reset_index()
+                fig_n = px.bar(g_ned, x='Duruş Nedeni', y='Hesaplanan Zaman (Saat)', title="Duruş Nedenleri")
+                st.plotly_chart(fig_n, use_container_width=True)
 
-# ---------------- TAB 4: GEÇMİŞ DÖNEM MANUEL VERİ YÖNETİMİ ----------------
+# ---------------- TAB 4: GEÇMİŞ DÖNEM ----------------
 with tab4:
     st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri Yönetimi")
-    st.markdown("Şubat 2026 - Ağustos 2026 dönemine ait talep edilen ve onaylanan kayıp zaman saatlerini aşağıdan düzenleyerek güncelleyebilirsiniz.")
-    
     gecmis_df_editable = st.data_editor(
         pd.DataFrame(st.session_state["gecmis_ozetler"]),
         column_config={
             "Dönem": st.column_config.TextColumn("Dönem", disabled=True),
-            "Talep Edilen Kayıp Zaman (Saat)": st.column_config.NumberColumn("Talep Edilen Kayıp Zaman (Saat)", format="%.2f"),
-            "Onaylanan Kayıp Zaman (Saat)": st.column_config.NumberColumn("Onaylanan Kayıp Zaman (Saat)", format="%.2f"),
-            "Açıklama": st.column_config.TextColumn("Açıklama / Notlar")
+            "Talep Edilen Kayıp Zaman (Saat)": st.column_config.NumberColumn("Talep Edilen", format="%.2f"),
+            "Onaylanan Kayıp Zaman (Saat)": st.column_config.NumberColumn("Onaylanan", format="%.2f"),
+            "Açıklama": st.column_config.TextColumn("Açıklama")
         },
         use_container_width=True,
         key="gecmis_editor_final"
     )
-    
     if st.button("🔄 Geçmiş Dönem Verilerini Kaydet", use_container_width=True, type="primary"):
         st.session_state["gecmis_ozetler"] = gecmis_df_editable.to_dict(orient="records")
-        st.success("Geçmiş 7 aylık dönem verileri başarıyla güncellendi ve kümülatif hesaplamalara yansıtıldı!")
+        st.success("Geçmiş dönem verileri güncellendi!")
         st.rerun()
 
-# ---------------- TAB 5: CANLI SORU & SOHBET ----------------
+# ---------------- TAB 5: SOHBET ----------------
 with tab5:
     st.subheader("💬 Canlı İletişim & Soru-Cevap Paneli")
-    st.markdown("Tüm ekip üyeleri arasında operasyonel soru, talep ve belge paylaşımlarının yapıldığı canlı iletişim alanıdır.")
-    st.markdown("---")
-    
     chat_container = st.container(height=400)
     with chat_container:
         if not st.session_state["chat_messages"]:
-            st.info("Henüz mesaj yazılmamış. İlk mesajı siz gönderin!")
+            st.info("Henüz mesaj yok.")
         else:
             for m in st.session_state["chat_messages"]:
-                gonderen = m["gonderen"]
-                zaman = m["zaman"]
-                mesaj = m["mesaj"]
-                dosya_linki = m.get("dosya_linki", "")
+                dosya_html = f"<br>📎 <a href='{m['dosya_linki']}' target='_blank'>Dosyayı Aç</a>" if m.get("dosya_linki") else ""
+                st.markdown(f"**{m['gonderen']}** ({m['zaman']}): {m['mesaj']} {dosya_html}", unsafe_allow_html=True)
                 
-                dosya_html = ""
-                if dosya_linki and dosya_linki.startswith("http"):
-                    dosya_html = f"""
-                    <div style="margin-top: 8px; background: rgba(0,0,0,0.05); padding: 6px 10px; border-radius: 6px;">
-                        📎 <strong>Paylaşılan Belge / Dosya:</strong> <a href="{dosya_linki}" target="_blank" style="color: #1f77b4; font-weight: bold; text-decoration: underline;">Dosyayı Aç ve İndir</a>
-                    </div>
-                    """
-                
-                if gonderen == user["name"]:
-                    st.markdown(f"""
-                    <div style="background-color: #e3f2fd; padding: 10px 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #1f77b4;">
-                        <strong>Siz ({gonderen})</strong> <span style="font-size: 11px; color: gray; float: right;">{zaman}</span><br>
-                        <p style="margin: 5px 0 0 0; color: #333;">{mesaj}</p>
-                        {dosya_html}
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div style="background-color: #f1f8e9; padding: 10px 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #2ca02c;">
-                        <strong>{gonderen}</strong> <span style="font-size: 11px; color: gray; float: right;">{zaman}</span><br>
-                        <p style="margin: 5px 0 0 0; color: #333;">{mesaj}</p>
-                        {dosya_html}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
     with st.form("chat_form", clear_on_submit=True):
-        yeni_mesaj = st.text_area("Mesajınızı veya sorunuzu yazın...", placeholder="Örn: Mehmet Bey, yeni irsaliye belgesini iletiyorum...")
-        dosya_input_link = st.text_input("📎 Dosya / Belge Linki Ekleyin (Opsiyonel)", placeholder="https://drive.google.com/...")
-        
-        btn_gonder = st.form_submit_button("📨 Mesaj ve Belge Gönder", use_container_width=True)
-        
-        if btn_gonder:
-            if not yeni_mesaj.strip() and not dosya_input_link.strip():
-                st.warning("Boş mesaj veya dosya gönderilemez!")
-            else:
-                zaman_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+        yeni_mesaj = st.text_area("Mesajınızı yazın...")
+        dosya_input_link = st.text_input("📎 Dosya / Belge Linki (Opsiyonel)")
+        if st.form_submit_button("Gönder", use_container_width=True):
+            if yeni_mesaj or dosya_input_link:
                 st.session_state["chat_messages"].append({
-                    "zaman": zaman_str,
+                    "zaman": datetime.now().strftime("%d.%m.%Y %H:%M"),
                     "gonderen": user["name"],
-                    "mesaj": yeni_mesaj.strip() if yeni_mesaj.strip() else "Belge paylaşıldı.",
-                    "dosya_linki": dosya_input_link.strip()
+                    "mesaj": yeni_mesaj or "Belge paylaşıldı.",
+                    "dosya_linki": dosya_input_link
                 })
-                st.success("Mesajınız ve belgeniz başarıyla iletildi!")
                 st.rerun()
 
     if user["role"] == "admin":
-        st.markdown("---")
-        with st.expander("⚙️ Sohbet Yönetimi"):
-            if st.button("🗑️ Sohbet Geçmişini Tamamen Temizle", type="primary"):
-                st.session_state["chat_messages"] = []
-                st.success("Sohbet geçmişi temizlendi!")
-                st.rerun()
+        if st.button("🗑️ Sohbeti Temizle", type="primary"):
+            st.session_state["chat_messages"] = []
+            st.rerun()
 
-# ---------------- TAB 6: GELEN ÖDEMELER & TAHSİLATLAR ----------------
+# ---------------- TAB 6: ÖDEMELER ----------------
 with tab6:
-    if user["role"] == "accounting":
-        st.info("ℹ️ Ödeme girişi yapmak için ilk sekme olan **'💰 Ödeme Bilgisi Gir'** sekmesini kullanabilirsiniz.")
-    
     st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu")
-    st.markdown("Muhasebe birimi tarafından girilen müşteri ödemeleri ve tahsilat bildirimleri aşağıda listelenmektedir.")
-    st.markdown("---")
-    
     odeme_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
-    
     if odeme_df.empty:
-        st.info("Henüz kaydedilmiş bir ödeme bildirimi bulunmuyor.")
+        st.info("Henüz ödeme kaydı bulunmuyor.")
     else:
         st.dataframe(odeme_df, use_container_width=True)
         
     if user["role"] == "admin":
-        with st.expander("⚙️ Ödeme Kayıtlarını Yönet"):
-            if st.button("🗑️ Tüm Ödeme Geçmişini Temizle", type="primary"):
-                st.session_state["odeme_kayitlari"] = []
-                st.success("Ödeme kayıtları temizlendi!")
-                st.rerun()
+        if st.button("🗑️ Ödemeleri Temizle", type="primary"):
+            st.session_state["odeme_kayitlari"] = []
+            st.rerun()
