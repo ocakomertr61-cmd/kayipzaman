@@ -4,15 +4,16 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 import plotly.express as px
-# Güncelleme: 20.09
+
 # Sayfa Yapılandırması
 st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wide", page_icon="⏱️")
 
 # Google Sheet URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1UsGlWxzRmiriAufzk14D0oiS3CyHMAjENyFhIbw9VG4/edit?pli=1&gid=0#gid=0"
 
-# --- SABİT DEĞİŞKENLER (GARANTİ TANIM) ---
+# --- SABİT DEĞİŞKENLER VE OPSİYONLAR (EN ÜSTTE VE KESİN TANIMLI) ---
 DURUM_OPSİYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
+
 KAYIP_ZAMAN_TURU_OPSIYONLARI = [
     "Gelen Ek İşçilik Talepleri / GKK Yakalamaları / Ücretli Rework",
     "Hat Duruşları Kaynaklı"
@@ -334,9 +335,6 @@ else:
 
 # ---------------- TAB 1 ----------------
 with tab1:
-    # Yerel Güvence Tanımı
-    DURUM_OPSİYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
-    
     if user["role"] == "admin":
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
         
