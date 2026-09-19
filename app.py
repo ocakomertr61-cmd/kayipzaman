@@ -331,7 +331,7 @@ st.markdown("---")
 
 df = load_data()
 
-# Sekme Yapısı (Rollerine Göre)
+# Sekme Yapısı (Rollerine Göre Doğrudan Tanımlı)
 if user["role"] == "admin":
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "➕ Yeni Kayıp Zaman Kaydı Ekle", 
@@ -342,7 +342,7 @@ if user["role"] == "admin":
         "💰 Gelen Ödemeler & Tahsilatlar"
     ])
 elif user["role"] == "accounting":
-    tab_muh_giris, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "💰 Ödeme Bilgisi Gir",
         "📊 Kayıt Listesi", 
         "📈 Analiz & Rapor", 
@@ -351,17 +351,18 @@ elif user["role"] == "accounting":
         "💰 Gelen Ödemeler & Tahsilatlar"
     ])
 else:
-    tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 Kayıt Listesi (Salt Okunur)", 
         "📈 Analiz & Rapor", 
         "📁 Geçmiş Dönem Manuel Veriler", 
         "💬 Canlı Soru & Sohbet",
-        "💰 Gelen Ödemeler & Tahsilatlar"
+        "💰 Gelen Ödemeler & Tahsilatlar",
+        "ℹ️ Bilgi"
     ])
 
-# ---------------- TAB 1: FORM (Yalnızca Admin) ----------------
-if user["role"] == "admin":
-    with tab1:
+# ---------------- TAB 1: FORM / MUHASEBE GİRİŞİ / SALT OKUNUR LİSTE ----------------
+with tab1:
+    if user["role"] == "admin":
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
         
         kayip_zaman_turu = st.radio(
@@ -469,9 +470,7 @@ if user["role"] == "admin":
                     st.success(f"ID #{yeni_id} ({secilen_donem_form} - {musteri_adi}) başarıyla kaydedildi!")
                     st.rerun()
 
-# ---------------- MUHASEBE ÖZEL GİRİŞ SEKMESİ ----------------
-if user["role"] == "accounting":
-    with tab_muh_giris:
+    elif user["role"] == "accounting":
         st.subheader("💰 Yeni Müşteri Ödemesi / Tahsilatı Gir")
         st.markdown("Müşteriden gelen ödemeleri buraya girerek Ömer Bey, Mehmet Bey, Dilber Hanım ve Hakan Bey'in panellerine anında iletebilirsiniz.")
         
@@ -484,7 +483,7 @@ if user["role"] == "accounting":
                 muh_tutar = st.text_input("Yatan Tutar (TL / Döviz) *", placeholder="Örn: 25.000,00 TL", key="muh_tutar_val")
                 muh_tarih = st.text_input("Ödeme Tarihi", value=datetime.now().strftime("%d.%m.%Y"), key="muh_tarih_val")
                 
-            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Fatura no, banka bilgisi veya ek açıklamalar...", key="muh_aciklama_val")
+            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Fatura no, banka açıklaması veya yönetim kadrosuna iletmek istediğiniz bir not varsa...", key="muh_aciklama_val")
             
             btn_odeme_kaydet = st.form_submit_button("💾 Ödeme Bilgisini Yönetime İlet", use_container_width=True, type="primary")
             
@@ -502,6 +501,9 @@ if user["role"] == "accounting":
                     })
                     st.success("Ödeme bilgisi başarıyla muhasebe sistemine işlendi ve yönetim kadrosuna iletildi!")
                     st.rerun()
+    else:
+        st.subheader("📊 Kayıt Listesi (Salt Okunur)")
+        st.dataframe(df, use_container_width=True)
 
 # ---------------- TAB 2: YÖNETİM ----------------
 with tab2:
@@ -696,6 +698,7 @@ with tab2:
                             st.success("Sıfırlandı!")
                             st.rerun()
     else:
+        st.subheader("📊 Kayıt Listesi")
         st.dataframe(df, use_container_width=True)
 
 # ---------------- TAB 3: ANALİZ & RAPOR ----------------
@@ -979,6 +982,9 @@ with tab5:
 
 # ---------------- TAB 6: GELEN ÖDEMELER & TAHSİLATLAR ----------------
 with tab6:
+    if user["role"] == "accounting":
+        st.info("ℹ️ Ödeme girişi yapmak için ilk sekme olan **'💰 Ödeme Bilgisi Gir'** sekmesini kullanabilirsiniz.")
+    
     st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu")
     st.markdown("Muhasebe birimi tarafından girilen müşteri ödemeleri ve tahsilat bildirimleri aşağıda listelenmektedir.")
     st.markdown("---")
