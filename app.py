@@ -15,7 +15,7 @@ SUTUNLAR = [
     "ID", "Tarih", "Kayıp Zaman Türü", "Dönem (Ay/Yıl)", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
     "Referans No", "Seri No", "Duruş Nedeni", "İşlem Açıklaması", 
     "Gelen Parti Miktarı", "Hata Oranı (%)", "P/H", 
-    "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", "Son Durum", 
+    "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", "Saatlik İşçilik Ücreti (TL)", "Toplam Tutar (TL)", "Son Durum", 
     "İrsaliye Görseli Linki", "Etiket Görseli Linki", "Hata Görseli Linki", "Onay Belgesi Linki"
 ]
 
@@ -77,10 +77,10 @@ def _fetch_data_from_sheet():
         
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
-        for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
+        for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H', 'Saatlik İşçilik Ücreti (TL)', 'Toplam Tutar (TL)']:
             if num_col in df.columns:
                 s = df[num_col].astype(str).str.strip().str.replace(',', '', regex=False).str.replace('.', '', regex=False)
-                numeric_vals = pd.to_numeric(s, errors='coerce').fillna(0.0) / 100.0
+                numeric_vals = pd.to_numeric(s, errors='coerce').fillna(0.0) / (100.0 if '%' in num_col else 1.0)
                 df[num_col] = numeric_vals.round(2)
         
         df['Gelen Parti Miktarı'] = pd.to_numeric(df['Gelen Parti Miktarı'], errors='coerce').fillna(0).astype(int)
@@ -106,7 +106,7 @@ def update_google_sheet(df):
         worksheet = spreadsheet.get_worksheet(0)
         
         df_to_write = df.copy()
-        for col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)', 'P/H']:
+        for col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)', 'P/H', 'Saatlik İşçilik Ücreti (TL)', 'Toplam Tutar (TL)']:
             if col in df_to_write.columns:
                 num_series = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
                 df_to_write[col] = num_series.apply(lambda x: f"{x:.2f}".replace('.', ','))
@@ -216,43 +216,43 @@ if "gecmis_ozetler" not in st.session_state:
     st.session_state["gecmis_ozetler"] = [
         {
             "Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
             "Kesinti Açıklaması": "Süreç başlangıcı", "Genel Açıklama": "Başlangıç"
         },
         {
             "Dönem": "Mart 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
             "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
             "Dönem": "Nisan 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
             "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
             "Dönem": "Mayıs 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
             "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
             "Dönem": "Haziran 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
             "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
             "Dönem": "Temmuz 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
             "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
             "Dönem": "Ağustos 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
             "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         }
     ]
 else:
-    # Eski session kalıntılarında yeni alanlar eksikse hata almamak için tamamla
     for row in st.session_state["gecmis_ozetler"]:
+        if "Saatlik İşçilik Ücreti (TL)" not in row: row["Saatlik İşçilik Ücreti (TL)"] = 500.0
         if "Talep Edilen Tutar (TL)" not in row: row["Talep Edilen Tutar (TL)"] = 0.0
         if "Onaylanan Tutar (TL)" not in row: row["Onaylanan Tutar (TL)"] = 0.0
         if "Legrand Kesinti Tutarı (TL)" not in row: row["Legrand Kesinti Tutarı (TL)"] = 0.0
@@ -417,6 +417,12 @@ with tab1:
                 
             st.markdown("---")
             kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=26.92, step=0.1, format="%.2f", key="f_kayip")
+            
+            # YENİ EKLENEN SAATLİK ÜCRET KUTUCUĞU
+            saatlik_ucret = st.number_input("💵 Saatlik İşçilik Ücreti (TL) *", min_value=0.0, value=500.0, step=10.0, format="%.2f", key="f_saatlik_ucret")
+            toplam_tutar_hesaplanan = round(kayip_zaman_saat * saatlik_ucret, 2)
+            st.info(f"💰 **Hesaplanan Toplam Tutar: {toplam_tutar_hesaplanan:,.2f} TL**".replace(",", "X").replace(".", ",").replace("X", "."))
+            
             son_durum = st.selectbox("Son Durum *", DURUM_OPSIYONLARI, key="f_durum")
 
         islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...", key="f_aciklama")
@@ -459,6 +465,8 @@ with tab1:
                     "P/H": float(ph),
                     "Hesaplanan Zaman (Saat)": round(float(hesaplanan_zaman), 2),
                     "Kayıp Zaman (Saat)": round(float(kayip_zaman_saat), 2),
+                    "Saatlik İşçilik Ücreti (TL)": round(float(saatlik_ucret), 2),
+                    "Toplam Tutar (TL)": round(float(toplam_tutar_hesaplanan), 2),
                     "Son Durum": son_durum,
                     "İrsaliye Görseli Linki": irsaliye_gorseli_link,
                     "Etiket Görseli Linki": etiket_gorseli_link,
@@ -536,6 +544,8 @@ with tab2:
                     "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0.0, max_value=100.0, format="%.2f"),
                     "Hesaplanan Zaman (Saat)": st.column_config.NumberColumn("Hesaplanan Zaman (Saat)", format="%.2f"),
                     "Kayıp Zaman (Saat)": st.column_config.NumberColumn("Kayıp Zaman (Saat)", format="%.2f"),
+                    "Saatlik İşçilik Ücreti (TL)": st.column_config.NumberColumn("Saatlik Ücret (TL)", format="%.2f"),
+                    "Toplam Tutar (TL)": st.column_config.NumberColumn("Toplam Tutar (TL)", format="%.2f"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
                 },
@@ -650,13 +660,17 @@ with tab3:
 
 # ---------------- TAB 4: GEÇMİŞ DÖNEM ----------------
 with tab4:
-    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri & Finansal / Kesinti Yönetimi")
+    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri & Saatlik Ücret ile Tutar Hesaplama")
+    
+    gecmis_temp_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
+    
     gecmis_df_editable = st.data_editor(
-        pd.DataFrame(st.session_state["gecmis_ozetler"]),
+        gecmis_temp_df,
         column_config={
             "Dönem": st.column_config.TextColumn("Dönem", disabled=True),
             "Talep Edilen Kayıp Zaman (Saat)": st.column_config.NumberColumn("Talep Edilen (Saat)", format="%.2f"),
             "Onaylanan Kayıp Zaman (Saat)": st.column_config.NumberColumn("Onaylanan (Saat)", format="%.2f"),
+            "Saatlik İşçilik Ücreti (TL)": st.column_config.NumberColumn("Saatlik Ücret (TL)", format="%.2f"),
             "Talep Edilen Tutar (TL)": st.column_config.NumberColumn("Talep Edilen Tutar (TL)", format="%.2f"),
             "Onaylanan Tutar (TL)": st.column_config.NumberColumn("Onaylanan Tutar (TL)", format="%.2f"),
             "Legrand Kesinti Tutarı (TL)": st.column_config.NumberColumn("Kesinti Tutarı (TL)", format="%.2f"),
@@ -666,9 +680,21 @@ with tab4:
         use_container_width=True,
         key="gecmis_editor_final"
     )
-    if st.button("🔄 Geçmiş Dönem Finansal & Zaman Verilerini Kaydet", use_container_width=True, type="primary"):
-        st.session_state["gecmis_ozetler"] = gecmis_df_editable.to_dict(orient="records")
-        st.success("Geçmiş dönem verileri ve kesintiler başarıyla güncellendi!")
+    
+    if st.button("🔄 Saatleri Saatlik Ücretle Çarp & Kaydet", use_container_width=True, type="primary"):
+        # Otomatik olarak saatleri ve saatlik ücreti çarpıp tutarları güncelleyelim
+        updated_records = []
+        for index, row in gecmis_df_editable.iterrows():
+            t_saat = float(row.get("Talep Edilen Kayıp Zaman (Saat)", 0.0))
+            o_saat = float(row.get("Onaylanan Kayıp Zaman (Saat)", 0.0))
+            s_ucret = float(row.get("Saatlik İşçilik Ücreti (TL)", 0.0))
+            
+            row["Talep Edilen Tutar (TL)"] = round(t_saat * s_ucret, 2)
+            row["Onaylanan Tutar (TL)"] = round(o_saat * s_ucret, 2)
+            updated_records.append(row.to_dict())
+            
+        st.session_state["gecmis_ozetler"] = updated_records
+        st.success("Geçmiş dönem saatleri saatlik ücret ile çarpıldı ve tutarlar güncellenip kaydedildi!")
         st.rerun()
 
 # ---------------- TAB 5: SOHBET ----------------
