@@ -180,13 +180,26 @@ if "chat_messages" not in st.session_state:
         {"zaman": "19.09.2026 10:35", "gonderen": "Ömer OCAK", "mesaj": "Tabii ki Mehmet Bey, hemen inceliyorum.", "dosya_linki": ""}
     ]
 
-# --- ORTAK MUHASEBE ÖDEME / TAHSİLAT HAFIZASI ---
+# --- ORTAK MUHASEBE ÖDEME / TAHSİLAT HAFIZASI (GEÇMİŞTEN GELENLER DAHİL) ---
 if "odeme_kayitlari" not in st.session_state:
     st.session_state["odeme_kayitlari"] = [
         {
+            "İşlem Tarihi": "15.02.2026",
+            "Dönem": "Şubat 2026",
+            "Müşteri Adı": "Legrand (Geçmiş Devir)",
+            "Tutar": 120000.00,
+            "Para Birimi": "TL (₺)",
+            "Kur": 1.0,
+            "TL Karşılığı": 120000.00,
+            "Gösterim": "120.000,00 TL (₺)",
+            "Açıklama": "Şubat dönemi geçmiş devir ödemesi.",
+            "Kaydeden": "Ömer OCAK",
+            "Durum": "Gelen Ödeme"
+        },
+        {
             "İşlem Tarihi": "19.09.2026",
             "Dönem": "Eylül 2026",
-            "Müşteri Adı": "Legrand (Örnek)",
+            "Müşteri Adı": "Legrand",
             "Tutar": 155252.00,
             "Para Birimi": "TL (₺)",
             "Kur": 1.0,
@@ -201,7 +214,7 @@ if "odeme_kayitlari" not in st.session_state:
 # --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ ---
 if "gecmis_ozetler" not in st.session_state:
     st.session_state["gecmis_ozetler"] = [
-        {"Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Süreç başlangıcı / Veri bekleniyor"},
+        {"Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Süreç başlangıcı"},
         {"Dönem": "Mart 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
         {"Dönem": "Nisan 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
         {"Dönem": "Mayıs 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
@@ -423,24 +436,24 @@ with tab1:
                     st.rerun()
 
     elif user["role"] == "accounting":
-        st.subheader("💰 Yeni Müşteri Ödemesi / Tahsilat Girişi (Döviz & Kur Hesaplamalı)")
+        st.subheader("💰 Müşteri Ödemesi / Tahsilat Girişi (Geçmiş veya Güncel Dönem)")
         with st.form("muhasebe_odeme_form", clear_on_submit=True):
             col_m1, col_m2, col_m3 = st.columns(3)
             with col_m1:
-                muh_donem = st.selectbox("Dönem Seçin (Ay / Yıl) *", options=DONEM_LISTESI, index=8, key="muh_donem_sec")
+                muh_donem = st.selectbox("Dönem Seçin (Ay / Yıl) *", options=DONEM_LISTESI, index=0, key="muh_donem_sec")
                 muh_musteri = st.text_input("Müşteri Adı *", placeholder="Örn: Legrand", key="muh_musteri_adi")
             with col_m2:
-                muh_tutar = st.number_input("Yatan Tutar *", min_value=0.0, value=155252.00, step=100.0, format="%.2f", key="muh_tutar_val")
+                muh_tutar = st.number_input("Tutar *", min_value=0.0, value=155252.00, step=100.0, format="%.2f", key="muh_tutar_val")
                 muh_para_birimi = st.selectbox("Para Birimi", options=["TL (₺)", "USD ($)", "EUR (€)"], key="muh_pb")
             with col_m3:
-                muh_kur = st.number_input("Güncel TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
-                muh_tarih = st.text_input("Ödeme Tarihi", value=datetime.now().strftime("%d.%m.%Y"), key="muh_tarih_val")
+                muh_kur = st.number_input("TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
+                muh_tarih = st.text_input("Ödeme / İşlem Tarihi", value=datetime.now().strftime("%d.%m.%Y"), key="muh_tarih_val")
                 
             muh_durum_tipi = st.selectbox("Ödeme Durumu", options=["Gelen Ödeme", "Bekleyen Ödeme"], key="muh_durum_tipi")
             hesaplanan_tl = muh_tutar if "TL" in muh_para_birimi else muh_tutar * muh_kur
             
-            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Fatura no, banka dekontu...", key="muh_aciklama_val")
-            btn_odeme_kaydet = st.form_submit_button("💾 Ödeme Bilgisini Kaydet", use_container_width=True, type="primary")
+            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Geçmiş dönem devri veya fatura no...", key="muh_aciklama_val")
+            btn_odeme_kaydet = st.form_submit_button("💾 Ödeme / Tahsilat Kaydet", use_container_width=True, type="primary")
             
             if btn_odeme_kaydet:
                 if not muh_musteri.strip() or muh_tutar <= 0:
@@ -460,7 +473,7 @@ with tab1:
                         "Kaydeden": user["name"],
                         "Durum": muh_durum_tipi
                     })
-                    st.success("Ödeme kaydı başarıyla eklendi!")
+                    st.success("Ödeme kaydı sisteme başarıyla işlendi ve otomatik güncellendi!")
                     st.rerun()
     else:
         st.subheader("📊 Kayıt Listesi (Salt Okunur)")
@@ -538,10 +551,9 @@ with tab3:
     tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
     st.markdown("---")
-    st.markdown("### 💰 Finansal Ödeme Analizi (Bekleyen / Gelen / Tüm Ödemeler)")
+    st.markdown("### 💰 Finansal Ödeme Analizi (Geçmiş Devirler Dahil Otomatik Güncellenen)")
     
     if not odeme_analiz_df.empty:
-        # Durum filtresi kontrolü için güvenli kolon kontrolü
         if "Durum" not in odeme_analiz_df.columns:
             odeme_analiz_df["Durum"] = "Gelen Ödeme"
             
@@ -640,7 +652,7 @@ with tab5:
 
 # ---------------- TAB 6: ÖDEMELER ----------------
 with tab6:
-    st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu")
+    st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu (Geçmiş Dönemler Dahil)")
     odeme_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
     if odeme_df.empty:
         st.info("Henüz ödeme kaydı bulunmuyor.")
