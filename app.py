@@ -155,8 +155,8 @@ def load_gecmis_data_cached():
             try:
                 worksheet = spreadsheet.worksheet("gecmisdonem")
                 data = worksheet.get_all_records()
-                # Boş satırları filtrele
-                data = [row for row in data if row.get("ID") !== "" and row.get("ID") is not None]
+                # Boş satırları filtrele (!== yerine != kullanıldı)
+                data = [row for row in data if row.get("ID") != "" and row.get("ID") is not None]
                 df = pd.DataFrame(data)
                 if df.empty:
                     df = pd.DataFrame(varsayilan_liste)
@@ -210,7 +210,7 @@ def load_odeme_data_cached():
             try:
                 worksheet = spreadsheet.worksheet("odeme-tahsilat-takip")
                 data = worksheet.get_all_records()
-                data = [row for row in data if row.get("ID") !== "" and row.get("ID") is not None]
+                data = [row for row in data if row.get("ID") != "" and row.get("ID") is not None]
                 df = pd.DataFrame(data)
                 if df.empty:
                     df = pd.DataFrame(varsayilan_odeme)
