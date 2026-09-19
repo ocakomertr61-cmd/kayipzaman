@@ -184,6 +184,7 @@ if "chat_messages" not in st.session_state:
 if "odeme_kayitlari" not in st.session_state:
     st.session_state["odeme_kayitlari"] = [
         {
+            "ID": 1,
             "İşlem Tarihi": "15.02.2026",
             "Dönem": "Şubat 2026",
             "Müşteri Adı": "Legrand (Geçmiş Devir)",
@@ -197,6 +198,7 @@ if "odeme_kayitlari" not in st.session_state:
             "Durum": "Gelen Ödeme"
         },
         {
+            "ID": 2,
             "İşlem Tarihi": "19.09.2026",
             "Dönem": "Eylül 2026",
             "Müşteri Adı": "Legrand",
@@ -210,6 +212,11 @@ if "odeme_kayitlari" not in st.session_state:
             "Durum": "Gelen Ödeme"
         }
     ]
+else:
+    # Mevcut kayıtlarda ID alanı eksikse otomatik ID atayalım
+    for idx, item in enumerate(st.session_state["odeme_kayitlari"]):
+        if "ID" not in item:
+            item["ID"] = idx + 1
 
 # --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ ---
 if "gecmis_ozetler" not in st.session_state:
@@ -526,7 +533,12 @@ with tab1:
                     st.error("Lütfen geçerli bir Müşteri Adı ve Tutar giriniz!")
                 else:
                     gosterim_str = format_para(muh_tutar, muh_para_birimi)
+                    
+                    max_id = max([item.get("ID", 0) for item in st.session_state["odeme_kayitlari"]]) if st.session_state["odeme_kayitlari"] else 0
+                    yeni_odeme_id = max_id + 1
+
                     st.session_state["odeme_kayitlari"].insert(0, {
+                        "ID": yeni_odeme_id,
                         "İşlem Tarihi": muh_tarih,
                         "Dönem": secilen_donem_adi,
                         "Müşteri Adı": muh_musteri.strip(),
@@ -583,7 +595,6 @@ with tab2:
                         st.success("Tablo değişiklikleri başarıyla Google Sheets'e kaydedildi!")
                         st.rerun()
             with c_secili_sil:
-                # İşaretlenenleri anında Google Sheets'ten sil ve kaydet
                 if st.button("🗑️ İşaretlenen Mükerrer / Seçili Kayıtları Sil", use_container_width=True, type="primary"):
                     secilenler = edited_df[edited_df["Seç"] == True]
                     if secilenler.empty:
@@ -773,14 +784,59 @@ with tab6:
     if odeme_df.empty:
         st.info("Henüz ödeme kaydı bulunmuyor.")
     else:
-        st.dataframe(odeme_df, use_container_width=True)
+        if yetkili_mi:
+            if "Seç" not in odeme_df.columns:
+                odeme_df.insert(0, "Seç", False)
+            
+            edited_odeme_df = st.data_editor(
+                odeme_df,
+                column_config={
+                    "Seç": st.column_config.CheckboxColumn("Seç", default=False),
+                    "ID": st.column_config.NumberColumn("ID", disabled=True),
+                },
+                use_container_width=True,
+                key="odeme_editor_yonetim"
+            )
+        else:
+            st.dataframe(odeme_df, use_container_width=True)
         
     if yetkili_mi:
         st.markdown("---")
         st.markdown("### ⚙️ Ödeme Kayıtları Yönetimi")
-        if st.button("🗑️ Tüm Ödeme Kayıtlarını Temizle", type="primary"):
-            st.session_state["odeme_kayitlari"] = []
-            st.success("Tüm ödeme kayıtları temizlendi!")
-            st.rerun()
+        
+        col_odm_1, col_odm_2 = st.columns(2)
+        with col_odm_1:
+            if st.button("🗑️ İşaretlenen / Seçili Ödemeleri Sil", use_container_width=True, type="primary"):
+                secilen_odemeler = edited_odeme_df[edited_odeme_df["Seç"] == True]
+                if secilen_odemeler.empty:
+                    st.warning("Lütfen silmek istediğiniz ödeme satırının solundaki 'Seç' kutucuğunu işaretleyin!")
+                else:
+                    kalan_odemeler_df = edited_odeme_df[edited_odeme_df["Seç"] == False].drop(columns=["Seç"], errors="ignore")
+                    st.session_state["odeme_kayitlari"] = kalan_odemeler_df.to_dict(orient="records")
+                    st.success(f"Seçilen {len(secilen_odemeler)} adet ödeme kaydı silindi!")
+                    st.rerun()
+                    
+        with col_odm_2:
+            if st.button("⚠️ Tüm Ödeme Kayıtlarını Temizle", type="secondary", use_container_width=True):
+                st.session_state["odeme_kayitlari"] = []
+                st.success("Tüm ödeme kayıtları temizlendi!")
+                st.rerun()
+                
+        st.markdown("---")
+        st.markdown("### 🔍 ID ile Doğrudan Hızlı Ödeme Silme")
+        col_oid1, col_oid2 = st.columns([2, 1])
+        with col_oid1:
+            silinecek_odeme_id = st.number_input("Silmek İstediğiniz Ödeme ID Numarası", min_value=1, step=1, key="tekli_odeme_sil_id")
+        with col_oid2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("❌ Bu ID'ye Sahip Ödemeyi Sil", type="primary", use_container_width=True):
+                mevcut_odemeler = st.session_state["odeme_kayitlari"]
+                yeni_odemeler = [item for item in mevcut_odemeler if item.get("ID") != silinecek_odeme_id]
+                if len(yeni_odemeler) < len(mevcut_odemeler):
+                    st.session_state["odeme_kayitlari"] = yeni_odemeler
+                    st.success(f"ID #{silinecek_odeme_id} numaralı ödeme kaydı başarıyla silindi!")
+                    st.rerun()
+                else:
+                    st.error(f"Sistemde #{silinecek_odeme_id} ID numarasına ait ödeme kaydı bulunamadı.")
     else:
         st.info("ℹ️ Ödeme kayıtlarını silme ve yönetme yetkisi yalnızca yetkili kullanıcılara özeldir.")
