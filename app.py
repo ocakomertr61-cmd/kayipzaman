@@ -486,29 +486,32 @@ with tab1:
     elif user["role"] == "accounting":
         st.subheader("💰 Müşteri Ödemesi / Tahsilat Girişi (Ömer'in Dönem Bazlı Onaylanan Tutarları Üzerinden)")
         
-        # Geçmiş dönem özet verilerinden dönem ve onaylanan tutarları hazırlayalım
         gecmis_liste = st.session_state["gecmis_ozetler"]
         donem_secenekleri = [f"{item['Dönem']} — Onaylanan Tutar: {item['Onaylanan Tutar (TL)']:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") for item in gecmis_liste]
+        
+        if "muh_secilen_donem_str" not in st.session_state:
+            st.session_state["muh_secilen_donem_str"] = donem_secenekleri[0] if donem_secenekleri else ""
+
+        secilen_donem_str = st.selectbox("Ömer'in Girdiği Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
+        
+        secilen_donem_adi = secilen_donem_str.split(" — ")[0]
+        secilen_item = next((item for item in gecmis_liste if item["Dönem"] == secilen_donem_adi), None)
+        varsayilan_onaylanan_tutar = secilen_item["Onaylanan Tutar (TL)"] if secilen_item else 0.0
+        
+        st.info(f"📋 Seçilen Dönem Onaylanan Tutar: **{varsayilan_onaylanan_tutar:,.2f} TL**".replace(",", "X").replace(".", ",").replace("X", "."))
+        
+        # Anlık açılmayı sağlayan checkbox (Form dışında)
+        farkli_tutar_var_mi = st.checkbox("Gelen tutar onaylanan tutardan farklı mı? (Özel tutar girmek için işaretleyin)", key="muh_farkli_tutar_check")
         
         with st.form("muhasebe_odeme_form", clear_on_submit=True):
             col_m1, col_m2 = st.columns(2)
             with col_m1:
-                secilen_donem_str = st.selectbox("Ömer'in Girdiği Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
-                
-                # Seçilen dönemi ve onaylanan tutarı parse etme
-                secilen_donem_adi = secilen_donem_str.split(" — ")[0]
-                secilen_item = next((item for item in gecmis_liste if item["Dönem"] == secilen_donem_adi), None)
-                varsayilan_onaylanan_tutar = secilen_item["Onaylanan Tutar (TL)"] if secilen_item else 0.0
-                
                 muh_musteri = st.text_input("Müşteri Adı *", value="Legrand", key="muh_musteri_adi")
                 muh_tarih = st.text_input("Ödeme / İşlem Tarihi", value=datetime.now().strftime("%d.%m.%Y"), key="muh_tarih_val")
+                muh_durum_tipi = st.selectbox("Ödeme Durumu", options=["Gelen Ödeme", "Bekleyen Ödeme"], key="muh_durum_tipi")
                 
             with col_m2:
-                st.info(f"📋 Seçilen Dönem Onaylanan Tutar: **{varsayilan_onaylanan_tutar:,.2f} TL**".replace(",", "X").replace(".", ",").replace("X", "."))
-                
-                farkli_tutar_mi = st.radio("Gelen Tutar Farklı mı?", ["Hayır (Aynı Tutar)", "Evet (Farklı Tutar Gir)"], horizontal=True, key="muh_farkli_tutar_radio")
-                
-                if "Evet" in farkli_tutar_mi:
+                if farkli_tutar_var_mi:
                     muh_tutar = st.number_input("Gerçekleşen / Gelen Özel Tutar *", min_value=0.0, value=float(varsayilan_onaylanan_tutar), step=100.0, format="%.2f", key="muh_ozel_tutar")
                 else:
                     muh_tutar = float(varsayilan_onaylanan_tutar)
@@ -516,11 +519,10 @@ with tab1:
                     
                 muh_para_birimi = st.selectbox("Para Birimi", options=["TL (₺)", "USD ($)", "EUR (€)"], key="muh_pb")
                 muh_kur = st.number_input("TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
-                
-            muh_durum_tipi = st.selectbox("Ödeme Durumu", options=["Gelen Ödeme", "Bekleyen Ödeme"], key="muh_durum_tipi")
-            hesaplanan_tl = muh_tutar if "TL" in muh_para_birimi else muh_tutar * muh_kur
             
+            hesaplanan_tl = muh_tutar if "TL" in muh_para_birimi else muh_tutar * muh_kur
             muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Farklı tutar girildiyse gerekçesi veya banka dekont bilgisi...", key="muh_aciklama_val")
+            
             btn_odeme_kaydet = st.form_submit_button("💾 Ödeme / Tahsilat Kaydet", use_container_width=True, type="primary")
             
             if btn_odeme_kaydet:
