@@ -11,20 +11,7 @@ st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wi
 # Google Sheet URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1UsGlWxzRmiriAufzk14D0oiS3CyHMAjENyFhIbw9VG4/edit?pli=1&gid=0#gid=0"
 
-SUTUNLAR = [
-    "ID", "Tarih", "Kayıp Zaman Türü", "Dönem (Ay/Yıl)", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
-    "Referans No", "Seri No", "Duruş Nedeni", "İşlem Açıklaması", 
-    "Gelen Parti Miktarı", "Hata Oranı (%)", "P/H", 
-    "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", "Saatlik İşçilik Ücreti (TL)", "Toplam Tutar (TL)", "Son Durum", 
-    "İrsaliye Görseli Linki", "Etiket Görseli Linki", "Hata Görseli Linki", "Onay Belgesi Linki"
-]
-
-GECMIS_SUTUNLAR = [
-    "Dönem", "Talep Edilen Kayıp Zaman (Saat)", "Onaylanan Kayıp Zaman (Saat)", 
-    "Saatlik İşçilik Ücreti (TL)", "Talep Edilen Tutar (TL)", "Onaylanan Tutar (TL)", "Legrand Kesinti Tutarı (TL)", 
-    "Kesinti Açıklaması", "Genel Açıklama"
-]
-
+# --- SABİT DEĞİŞKENLER (GARANTİ TANIM) ---
 DURUM_OPSİYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
 KAYIP_ZAMAN_TURU_OPSIYONLARI = [
     "Gelen Ek İşçilik Talepleri / GKK Yakalamaları / Ücretli Rework",
@@ -45,6 +32,20 @@ DONEM_LISTESI = [
     "Temmuz 2026", "Ağustos 2026", "Eylül 2026", "Ekim 2026", "Kasım 2026", "Aralık 2026",
     "Ocak 2027", "Şubat 2027", "Mart 2027", "Nisan 2027", "Mayıs 2027", "Haziran 2027",
     "Temmuz 2027", "Ağustos 2027", "Eylül 2027", "Ekim 2027", "Kasım 2027", "Aralık 2027"
+]
+
+SUTUNLAR = [
+    "ID", "Tarih", "Kayıp Zaman Türü", "Dönem (Ay/Yıl)", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
+    "Referans No", "Seri No", "Duruş Nedeni", "İşlem Açıklaması", 
+    "Gelen Parti Miktarı", "Hata Oranı (%)", "P/H", 
+    "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", "Saatlik İşçilik Ücreti (TL)", "Toplam Tutar (TL)", "Son Durum", 
+    "İrsaliye Görseli Linki", "Etiket Görseli Linki", "Hata Görseli Linki", "Onay Belgesi Linki"
+]
+
+GECMIS_SUTUNLAR = [
+    "Dönem", "Talep Edilen Kayıp Zaman (Saat)", "Onaylanan Kayıp Zaman (Saat)", 
+    "Saatlik İşçilik Ücreti (TL)", "Talep Edilen Tutar (TL)", "Onaylanan Tutar (TL)", "Legrand Kesinti Tutarı (TL)", 
+    "Kesinti Açıklaması", "Genel Açıklama"
 ]
 
 # --- GSPREAD BAĞLANTISI ---
@@ -333,6 +334,9 @@ else:
 
 # ---------------- TAB 1 ----------------
 with tab1:
+    # Yerel Güvence Tanımı
+    DURUM_OPSİYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
+    
     if user["role"] == "admin":
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
         
