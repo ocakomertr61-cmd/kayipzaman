@@ -86,7 +86,6 @@ def load_data_cached():
             if col not in df.columns:
                 df[col] = None
         df = df[SUTUNLAR]
-        
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H', 'Saatlik İşçilik Ücreti (TL)', 'Toplam Tutar (TL)']:
@@ -156,6 +155,8 @@ def load_gecmis_data_cached():
             try:
                 worksheet = spreadsheet.worksheet("gecmisdonem")
                 data = worksheet.get_all_records()
+                # Boş satırları filtrele
+                data = [row for row in data if row.get("ID") !== "" and row.get("ID") is not None]
                 df = pd.DataFrame(data)
                 if df.empty:
                     df = pd.DataFrame(varsayilan_liste)
@@ -199,8 +200,8 @@ def update_gecmis_google_sheet(liste_veri):
 @st.cache_data(ttl=600, show_spinner="Ödeme tahsilat verileri yükleniyor...")
 def load_odeme_data_cached():
     varsayilan_odeme = [
-        {"ID": 1, "MÜŞTERİ ADI": "Legrand (Geçmiş Devir)", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇıklama NOTLAR": "Şubat dönemi geçmiş devir ödemesi.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 120000.00},
-        {"ID": 2, "MÜŞTERİ ADI": "Legrand", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇıklama NOTLAR": "Eylül ayı fatura tahsilatı alındı.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 155252.00}
+        {"ID": 1, "MÜŞTERİ ADI": "Legrand (Geçmiş Devir)", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇIKLAMA NOTLAR": "Şubat dönemi geçmiş devir ödemesi.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 120000.00},
+        {"ID": 2, "MÜŞTERİ ADI": "Legrand", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇIKLAMA NOTLAR": "Eylül ayı fatura tahsilatı alındı.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 155252.00}
     ]
     try:
         client = get_gspread_client()
@@ -209,6 +210,7 @@ def load_odeme_data_cached():
             try:
                 worksheet = spreadsheet.worksheet("odeme-tahsilat-takip")
                 data = worksheet.get_all_records()
+                data = [row for row in data if row.get("ID") !== "" and row.get("ID") is not None]
                 df = pd.DataFrame(data)
                 if df.empty:
                     df = pd.DataFrame(varsayilan_odeme)
@@ -499,16 +501,23 @@ with tab1:
         st.subheader("💰 Müşteri Ödemesi / Tahsilat Girişi")
         
         gecmis_liste = st.session_state["gecmis_ozetler"]
-        donem_secenekleri = [f"{item['DÖNEM']} — Onaylanan Tutar: {item['ONAYLANAN TUTAR']:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") for item in gecmis_liste]
+        donem_secenekleri = [
+            f"{item.get('DÖNEM', '')} — Onaylanan Tutar: {float(item.get('ONAYLANAN TUTAR', 0) or 0):,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") 
+            for item in gecmis_liste 
+            if isinstance(item, dict) and item.get('DÖNEM')
+        ]
         
+        if not donem_secenekleri:
+            donem_secenekleri = ["Eylül 2026 — Onaylanan Tutar: 0,00 TL"]
+
         if "muh_secilen_donem_str" not in st.session_state:
-            st.session_state["muh_secilen_donem_str"] = donem_secenekleri[0] if donem_secenekleri else ""
+            st.session_state["muh_secilen_donem_str"] = donem_secenekleri[0]
 
         secilen_donem_str = st.selectbox("Ömer'in Girdiği Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
         
         secilen_donem_adi = secilen_donem_str.split(" — ")[0]
-        secilen_item = next((item for item in gecmis_liste if item["DÖNEM"] == secilen_donem_adi), None)
-        varsayilan_onaylanan_tutar = secilen_item["ONAYLANAN TUTAR"] if secilen_item else 0.0
+        secilen_item = next((item for item in gecmis_liste if item.get("DÖNEM") == secilen_donem_adi), None)
+        varsayilan_onaylanan_tutar = float(secilen_item.get("ONAYLANAN TUTAR", 0.0) or 0.0) if secilen_item else 0.0
         
         farkli_tutar_var_mi = st.checkbox("Gelen tutar onaylanan tutardan farklı mı? (Özel tutar girmek için işaretleyin)", key="muh_farkli_tutar_check")
         
@@ -544,7 +553,7 @@ with tab1:
                         "ÖDEME DURUMU": muh_durum_tipi,
                         "PARA BİRİMİ": muh_para_birimi,
                         "TCBM KUR": muh_kur,
-                        "AÇıklama NOTLAR": muh_aciklama.strip() if muh_aciklama.strip() else f"{secilen_donem_adi} dönemi tahsilatı.",
+                        "AÇIKLAMA NOTLAR": muh_aciklama.strip() if muh_aciklama.strip() else f"{secilen_donem_adi} dönemi tahsilatı.",
                         "GERÇEKLEŞEN GELEN ÖZEL TUTAR": muh_tutar
                     }
                     
@@ -639,8 +648,8 @@ with tab3:
     aktif_talep = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
     aktif_onay = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
     
-    m_talep = pd.to_numeric(manuel_df['TALEP EDİLEN SAAT'], errors='coerce').sum()
-    m_onay = pd.to_numeric(manuel_df['ONAYLANAN SAAT'], errors='coerce').sum()
+    m_talep = pd.to_numeric(manuel_df['TALEP EDİLEN SAAT'], errors='coerce').sum() if not manuel_df.empty else 0.0
+    m_onay = pd.to_numeric(manuel_df['ONAYLANAN SAAT'], errors='coerce').sum() if not manuel_df.empty else 0.0
     
     st.markdown("### 🌐 Kümülatif Zaman Özeti")
     tz1, tz2 = st.columns(2)
@@ -648,9 +657,9 @@ with tab3:
     tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
     st.markdown("### 💼 Geçmiş Dönem Finansal & Kesinti Kümülatif Özeti")
-    m_talep_tutar = pd.to_numeric(manuel_df['TALEP EDİLEN TUTAR'], errors='coerce').sum()
-    m_onay_tutar = pd.to_numeric(manuel_df['ONAYLANAN TUTAR'], errors='coerce').sum()
-    m_kesinti_tutar = pd.to_numeric(manuel_df['KESİNTİ TUTARI'], errors='coerce').sum()
+    m_talep_tutar = pd.to_numeric(manuel_df['TALEP EDİLEN TUTAR'], errors='coerce').sum() if not manuel_df.empty else 0.0
+    m_onay_tutar = pd.to_numeric(manuel_df['ONAYLANAN TUTAR'], errors='coerce').sum() if not manuel_df.empty else 0.0
+    m_kesinti_tutar = pd.to_numeric(manuel_df['KESİNTİ TUTARI'], errors='coerce').sum() if not manuel_df.empty else 0.0
     
     ft1, ft2, ft3 = st.columns(3)
     ft1.metric("Geçmiş Toplam Talep Edilen Tutar", f"{m_talep_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
