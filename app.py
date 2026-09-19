@@ -211,7 +211,7 @@ if "odeme_kayitlari" not in st.session_state:
         }
     ]
 
-# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ (GÜVENLİ BAŞLATMA) ---
+# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ ---
 if "gecmis_ozetler" not in st.session_state:
     st.session_state["gecmis_ozetler"] = [
         {
@@ -500,7 +500,6 @@ with tab1:
         
         st.info(f"📋 Seçilen Dönem Onaylanan Tutar: **{varsayilan_onaylanan_tutar:,.2f} TL**".replace(",", "X").replace(".", ",").replace("X", "."))
         
-        # Anlık açılmayı sağlayan checkbox (Form dışında)
         farkli_tutar_var_mi = st.checkbox("Gelen tutar onaylanan tutardan farklı mı? (Özel tutar girmek için işaretleyin)", key="muh_farkli_tutar_check")
         
         with st.form("muhasebe_odeme_form", clear_on_submit=True):
@@ -553,7 +552,7 @@ with tab1:
 with tab2:
     df = load_data()
     if user["role"] == "admin":
-        st.subheader("📊 Kayıt Yönetimi (Düzenle & Toplu/Tekli Sil)")
+        st.subheader("📊 Kayıt Yönetimi (Düzenle & İstediğin Kaydı Seçerek Sil)")
         if df.empty or df.dropna(how='all').empty:
             st.info("Henüz kayıtlı veri bulunmuyor.")
         else:
@@ -579,27 +578,45 @@ with tab2:
                 key="editor"
             )
             
-            c_kaydet, c_toplu_sil, c_indir = st.columns([1.2, 1.2, 1])
+            c_kaydet, c_secili_sil, c_indir = st.columns([1.2, 1.2, 1])
             with c_kaydet:
                 if st.button("🔄 Tablo Değişikliklerini Kaydet", use_container_width=True):
                     clean_df = edited_df.drop(columns=["Seç"], errors="ignore")
                     if update_google_sheet(clean_df):
                         st.success("Tablo değişiklikleri kaydedildi!")
                         st.rerun()
-            with c_toplu_sil:
-                if st.button("🔴 Seçili Kayıtları Toplu Sil", use_container_width=True, type="primary"):
+            with c_secili_sil:
+                # İstenen kayıtların tek tıkla seçilip silinmesi (Mükerrer önleme)
+                if st.button("🗑️ İşaretlenen Mükerrer / Seçili Kayıtları Sil", use_container_width=True, type="primary"):
                     secilenler = edited_df[edited_df["Seç"] == True]
                     if secilenler.empty:
-                        st.warning("Seçim yapmadınız!")
+                        st.warning("Lütfen silmek istediğiniz satırın solundaki 'Seç' kutucuğunu işaretleyin!")
                     else:
                         kalan_df = edited_df[edited_df["Seç"] == False].drop(columns=["Seç"], errors="ignore")
                         if update_google_sheet(kalan_df):
-                            st.success("Seçilen kayıtlar silindi!")
+                            st.success(f"Seçilen {len(secilenler)} adet kayıt başarıyla silindi!")
                             st.rerun()
             with c_indir:
                 download_df = df.drop(columns=["Seç"], errors="ignore")
                 csv_data = download_df.to_csv(index=False).encode('utf-8-sig')
                 st.download_button("📥 CSV İndir", data=csv_data, file_name="kayip_zaman.csv", mime="text/csv", use_container_width=True)
+            
+            st.markdown("---")
+            st.markdown("### 🔍 ID ile Doğrudan Hızlı Silme (Mükerrer Kayıt İçin)")
+            col_id1, col_id2 = st.columns([2, 1])
+            with col_id1:
+                silinecek_id_input = st.number_input("Silmek İstediğiniz Kaydın ID Numarası", min_value=1, step=1, key="tekli_sil_id_input")
+            with col_id2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("❌ Bu ID'ye Sahip Kaydı Sil", type="primary", use_container_width=True):
+                    mevcut_df_id = load_data()
+                    if 'ID' in mevcut_df_id.columns and silinecek_id_input in mevcut_df_id['ID'].values:
+                        yeni_temiz_df = mevcut_df_id[mevcut_df_id['ID'] != silinecek_id_input]
+                        if update_google_sheet(yeni_temiz_df):
+                            st.success(f"ID #{silinecek_id_input} numaralı kayıt başarıyla silindi!")
+                            st.rerun()
+                    else:
+                        st.error(f"Sistemde #{silinecek_id_input} ID numarasına ait bir kayıt bulunamadı.")
     else:
         st.subheader("📊 Kayıt Listesi")
         st.dataframe(df, use_container_width=True)
@@ -759,7 +776,7 @@ with tab6:
     
     odeme_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
     if odeme_df.empty:
-        st.info("Henüz ödeme kaydı bulunmuyor.")
+        st.info("Henüz ödeme kaydı bulunuyor.")
     else:
         st.dataframe(odeme_df, use_container_width=True)
         
