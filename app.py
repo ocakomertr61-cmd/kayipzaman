@@ -66,7 +66,7 @@ def get_gspread_client():
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
 
-# --- ANA TABLO (guncel) İŞLEMLERİ (ttl=0 ile anlık güncellenir) ---
+# --- ANA TABLO (guncel) İŞLEMLERİ (ttl=0 ile anlık okunur) ---
 @st.cache_data(ttl=0, show_spinner="Google Sheets'ten veriler yükleniyor...")
 def load_data_cached():
     try:
@@ -346,7 +346,12 @@ with st.sidebar.expander("🔑 Parola Değiştir"):
 
 if st.sidebar.button("🔄 Verileri Yenile (Cache Temizle)", use_container_width=True):
     st.cache_data.clear()
-    st.success("Önbellek temizlendi, veriler yeniden yükleniyor...")
+    # Oturumda tutulan tüm dinamik veri listelerini sıfırla, böylece doğrudan Sheets'ten yeniden okunur
+    keys_to_reset = ["gecmis_ozetler", "odeme_kayitlari"]
+    for k in keys_to_reset:
+        if k in st.session_state:
+            del st.session_state[k]
+    st.success("Önbellek ve sistem hafızası temizlendi, güncel veriler yükleniyor...")
     st.rerun()
 
 if st.sidebar.button("🚪 Çıkış Yap", use_container_width=True):
