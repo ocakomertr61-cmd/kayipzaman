@@ -11,7 +11,7 @@ st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wi
 # Google Sheet URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1UsGlWxzRmiriAufzk14D0oiS3CyHMAjENyFhIbw9VG4/edit?pli=1&gid=0#gid=0"
 
-# --- SABİT DEĞİŞKENLER VE OPSİYONLAR (EN ÜSTTE VE KESİN TANIMLI) ---
+# --- SABİT DEĞİŞKENLER VE OPSİYONLAR ---
 DURUM_OPSİYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
 
 KAYIP_ZAMAN_TURU_OPSIYONLARI = [
@@ -44,9 +44,12 @@ SUTUNLAR = [
 ]
 
 GECMIS_SUTUNLAR = [
-    "Dönem", "Talep Edilen Kayıp Zaman (Saat)", "Onaylanan Kayıp Zaman (Saat)", 
-    "Saatlik İşçilik Ücreti (TL)", "Talep Edilen Tutar (TL)", "Onaylanan Tutar (TL)", "Legrand Kesinti Tutarı (TL)", 
-    "Kesinti Açıklaması", "Genel Açıklama"
+    "ID", "DÖNEM", "TALEP EDİLEN SAAT", "ONAYLANAN SAAT", "SAATLİK ÜCRET", 
+    "TALEP EDİLEN TUTAR", "ONAYLANAN TUTAR", "KESİNTİ TUTARI", "KESİNTİ AÇIKLAMASI", "GENEL AÇIKLAMA"
+]
+
+ODEME_SUTUNLAR = [
+    "ID", "MÜŞTERİ ADI", "ÖDEME DURUMU", "PARA BİRİMİ", "TCBM KUR", "AÇIKLAMA NOTLAR", "GERÇEKLEŞEN GELEN ÖZEL TUTAR"
 ]
 
 # --- GSPREAD BAĞLANTISI ---
@@ -63,16 +66,17 @@ def get_gspread_client():
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
 
+# --- ANA TABLO (guncel) İŞLEMLERİ ---
 @st.cache_data(ttl=600, show_spinner="Google Sheets'ten veriler yükleniyor...")
 def load_data_cached():
-    return _fetch_data_from_sheet()
-
-def _fetch_data_from_sheet():
     try:
         client = get_gspread_client()
         if client:
             spreadsheet = client.open_by_url(SHEET_URL)
-            worksheet = spreadsheet.get_worksheet(0)
+            try:
+                worksheet = spreadsheet.worksheet("guncel")
+            except:
+                worksheet = spreadsheet.get_worksheet(0)
             data = worksheet.get_all_records()
             df = pd.DataFrame(data)
         else:
@@ -111,7 +115,10 @@ def update_google_sheet(df):
         if not client:
             return False
         spreadsheet = client.open_by_url(SHEET_URL)
-        worksheet = spreadsheet.get_worksheet(0)
+        try:
+            worksheet = spreadsheet.worksheet("guncel")
+        except:
+            worksheet = spreadsheet.get_worksheet(0)
         
         df_to_write = df.copy()
         for col in ['Hesaplanan Zaman (Saat)', 'Kayıp Zaman (Saat)', 'Hata Oranı (%)', 'P/H', 'Saatlik İşçilik Ücreti (TL)', 'Toplam Tutar (TL)']:
@@ -129,58 +136,52 @@ def update_google_sheet(df):
         st.error(f"Google Sheets güncelleme hatası: {e}")
         return False
 
-# --- GEÇMİŞ DÖNEM GSPREAD İŞLEMLERİ ---
+# --- GEÇMİŞ DÖNEM (gecmisdonem) İŞLEMLERİ ---
 @st.cache_data(ttl=600, show_spinner="Geçmiş dönem verileri yükleniyor...")
 def load_gecmis_data_cached():
-    return _fetch_gecmis_from_sheet()
-
-def _fetch_gecmis_from_sheet():
     varsayilan_liste = [
-        {"Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Süreç başlangıcı", "Genel Açıklama": "Başlangıç"},
-        {"Dönem": "Mart 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
-        {"Dönem": "Nisan 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
-        {"Dönem": "Mayıs 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
-        {"Dönem": "Haziran 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
-        {"Dönem": "Temmuz 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
-        {"Dönem": "Ağustos 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
-        {"Dönem": "Eylül 2026", "Talep Edilen Kayıp Zaman (Saat)": 26.92, "Onaylanan Kayıp Zaman (Saat)": 26.92, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 13460.0, "Onaylanan Tutar (TL)": 13460.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Yok", "Genel Açıklama": "Aktif Dönem"}
+        {"ID": 1, "DÖNEM": "Şubat 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Süreç başlangıcı", "GENEL AÇIKLAMA": "Başlangıç"},
+        {"ID": 2, "DÖNEM": "Mart 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
+        {"ID": 3, "DÖNEM": "Nisan 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
+        {"ID": 4, "DÖNEM": "Mayıs 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
+        {"ID": 5, "DÖNEM": "Haziran 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
+        {"ID": 6, "DÖNEM": "Temmuz 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
+        {"ID": 7, "DÖNEM": "Ağustos 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
+        {"ID": 8, "DÖNEM": "Eylül 2026", "TALEP EDİLEN SAAT": 26.92, "ONAYLANAN SAAT": 26.92, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 13460.0, "ONAYLANAN TUTAR": 13460.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Yok", "GENEL AÇIKLAMA": "Aktif Dönem"}
     ]
     try:
         client = get_gspread_client()
         if client:
             spreadsheet = client.open_by_url(SHEET_URL)
             try:
-                worksheet = spreadsheet.worksheet("GecmisDonem")
+                worksheet = spreadsheet.worksheet("gecmisdonem")
                 data = worksheet.get_all_records()
                 df = pd.DataFrame(data)
                 if df.empty:
                     df = pd.DataFrame(varsayilan_liste)
             except:
-                if "gecmis_bellek_yedek" in st.session_state:
-                    return st.session_state["gecmis_bellek_yedek"]
                 return varsayilan_liste
         else:
             return varsayilan_liste
             
         for col in GECMIS_SUTUNLAR:
             if col not in df.columns:
-                df[col] = 0.0 if "Saat" in col or "Tutar" in col else ""
+                df[col] = 0.0 if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
         df = df[GECMIS_SUTUNLAR]
         return df.to_dict(orient="records")
-    except Exception as e:
+    except Exception:
         return varsayilan_liste
 
 def update_gecmis_google_sheet(liste_veri):
-    st.session_state["gecmis_bellek_yedek"] = liste_veri
     try:
         client = get_gspread_client()
         if not client:
             return True
         spreadsheet = client.open_by_url(SHEET_URL)
-        worksheet = spreadsheet.worksheet("GecmisDonem")
+        worksheet = spreadsheet.worksheet("gecmisdonem")
             
         df_to_write = pd.DataFrame(liste_veri)
-        for col in ["Talep Edilen Kayıp Zaman (Saat)", "Onaylanan Kayıp Zaman (Saat)", "Saatlik İşçilik Ücreti (TL)", "Talep Edilen Tutar (TL)", "Onaylanan Tutar (TL)", "Legrand Kesinti Tutarı (TL)"]:
+        for col in ["TALEP EDİLEN SAAT", "ONAYLANAN SAAT", "SAATLİK ÜCRET", "TALEP EDİLEN TUTAR", "ONAYLANAN TUTAR", "KESİNTİ TUTARI"]:
             if col in df_to_write.columns:
                 num_series = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
                 df_to_write[col] = num_series.apply(lambda x: f"{x:.2f}".replace('.', ','))
@@ -190,8 +191,61 @@ def update_gecmis_google_sheet(liste_veri):
         worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
         st.cache_data.clear()
         return True
+    except Exception as e:
+        st.error(f"Geçmiş dönem sheets güncelleme hatası: {e}")
+        return False
+
+# --- ÖDEME TAHSİLAT (odeme-tahsilat-takip) İŞLEMLERİ ---
+@st.cache_data(ttl=600, show_spinner="Ödeme tahsilat verileri yükleniyor...")
+def load_odeme_data_cached():
+    varsayilan_odeme = [
+        {"ID": 1, "MÜŞTERİ ADI": "Legrand (Geçmiş Devir)", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇıklama NOTLAR": "Şubat dönemi geçmiş devir ödemesi.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 120000.00},
+        {"ID": 2, "MÜŞTERİ ADI": "Legrand", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇıklama NOTLAR": "Eylül ayı fatura tahsilatı alındı.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 155252.00}
+    ]
+    try:
+        client = get_gspread_client()
+        if client:
+            spreadsheet = client.open_by_url(SHEET_URL)
+            try:
+                worksheet = spreadsheet.worksheet("odeme-tahsilat-takip")
+                data = worksheet.get_all_records()
+                df = pd.DataFrame(data)
+                if df.empty:
+                    df = pd.DataFrame(varsayilan_odeme)
+            except:
+                return varsayilan_odeme
+        else:
+            return varsayilan_odeme
+            
+        for col in ODEME_SUTUNLAR:
+            if col not in df.columns:
+                df[col] = ""
+        df = df[ODEME_SUTUNLAR]
+        return df.to_dict(orient="records")
     except Exception:
+        return varsayilan_odeme
+
+def update_odeme_google_sheet(liste_veri):
+    try:
+        client = get_gspread_client()
+        if not client:
+            return True
+        spreadsheet = client.open_by_url(SHEET_URL)
+        worksheet = spreadsheet.worksheet("odeme-tahsilat-takip")
+            
+        df_to_write = pd.DataFrame(liste_veri)
+        if "GERÇEKLEŞEN GELEN ÖZEL TUTAR" in df_to_write.columns:
+            num_series = pd.to_numeric(df_to_write["GERÇEKLEŞEN GELEN ÖZEL TUTAR"], errors='coerce').fillna(0.0).round(2)
+            df_to_write["GERÇEKLEŞEN GELEN ÖZEL TUTAR"] = num_series.apply(lambda x: f"{x:.2f}".replace('.', ','))
+            
+        df_to_write = df_to_write.fillna("")
+        worksheet.clear()
+        worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
+        st.cache_data.clear()
         return True
+    except Exception as e:
+        st.error(f"Ödeme sheets güncelleme hatası: {e}")
+        return False
 
 # --- KULLANICI / YETKİLENDİRME VERİ TABANI ---
 if "users" not in st.session_state:
@@ -216,19 +270,12 @@ if "chat_messages" not in st.session_state:
         {"zaman": "19.09.2026 10:30", "gonderen": "Mehmet ALAŞAR", "mesaj": "Ömer Bey, eylül ayı raporunu kontrol edebilir misiniz?", "dosya_linki": ""}
     ]
 
-# --- ORTAK MUHASEBE ÖDEME / TAHSİLAT HAFIZASI ---
-if "odeme_kayitlari" not in st.session_state:
-    st.session_state["odeme_kayitlari"] = [
-        {"ID": 1, "İşlem Tarihi": "15.02.2026", "Dönem": "Şubat 2026", "Müşteri Adı": "Legrand (Geçmiş Devir)", "Tutar": 120000.00, "Para Birimi": "TL (₺)", "Kur": 1.0, "TL Karşılığı": 120000.00, "Gösterim": "120.000,00 TL (₺)", "Açıklama": "Şubat dönemi geçmiş devir ödemesi.", "Kaydeden": "Ömer OCAK", "Durum": "Gelen Ödeme"},
-        {"ID": 2, "İşlem Tarihi": "19.09.2026", "Dönem": "Eylül 2026", "Müşteri Adı": "Legrand", "Tutar": 155252.00, "Para Birimi": "TL (₺)", "Kur": 1.0, "TL Karşılığı": 155252.00, "Gösterim": "155.252,00 TL (₺)", "Açıklama": "Eylül ayı fatura tahsilatı alındı.", "Kaydeden": "Muhasebe Birimi", "Durum": "Gelen Ödeme"}
-    ]
-else:
-    for idx, item in enumerate(st.session_state["odeme_kayitlari"]):
-        if "ID" not in item:
-            item["ID"] = idx + 1
-
+# Verileri Session State'e yükle
 if "gecmis_ozetler" not in st.session_state:
     st.session_state["gecmis_ozetler"] = load_gecmis_data_cached()
+
+if "odeme_kayitlari" not in st.session_state:
+    st.session_state["odeme_kayitlari"] = load_odeme_data_cached()
 
 def format_para(tutar, birim):
     try:
@@ -452,7 +499,7 @@ with tab1:
         st.subheader("💰 Müşteri Ödemesi / Tahsilat Girişi")
         
         gecmis_liste = st.session_state["gecmis_ozetler"]
-        donem_secenekleri = [f"{item['Dönem']} — Onaylanan Tutar: {item['Onaylanan Tutar (TL)']:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") for item in gecmis_liste]
+        donem_secenekleri = [f"{item['DÖNEM']} — Onaylanan Tutar: {item['ONAYLANAN TUTAR']:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") for item in gecmis_liste]
         
         if "muh_secilen_donem_str" not in st.session_state:
             st.session_state["muh_secilen_donem_str"] = donem_secenekleri[0] if donem_secenekleri else ""
@@ -460,8 +507,8 @@ with tab1:
         secilen_donem_str = st.selectbox("Ömer'in Girdiği Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
         
         secilen_donem_adi = secilen_donem_str.split(" — ")[0]
-        secilen_item = next((item for item in gecmis_liste if item["Dönem"] == secilen_donem_adi), None)
-        varsayilan_onaylanan_tutar = secilen_item["Onaylanan Tutar (TL)"] if secilen_item else 0.0
+        secilen_item = next((item for item in gecmis_liste if item["DÖNEM"] == secilen_donem_adi), None)
+        varsayilan_onaylanan_tutar = secilen_item["ONAYLANAN TUTAR"] if secilen_item else 0.0
         
         farkli_tutar_var_mi = st.checkbox("Gelen tutar onaylanan tutardan farklı mı? (Özel tutar girmek için işaretleyin)", key="muh_farkli_tutar_check")
         
@@ -469,8 +516,8 @@ with tab1:
             col_m1, col_m2 = st.columns(2)
             with col_m1:
                 muh_musteri = st.text_input("Müşteri Adı *", value="Legrand", key="muh_musteri_adi")
-                muh_tarih = st.text_input("Ödeme / İşlem Tarihi", value=datetime.now().strftime("%d.%m.%Y"), key="muh_tarih_val")
                 muh_durum_tipi = st.selectbox("Ödeme Durumu", options=["Gelen Ödeme", "Bekleyen Ödeme"], key="muh_durum_tipi")
+                muh_para_birimi = st.selectbox("Para Birimi", options=["TL (₺)", "USD ($)", "EUR (€)"], key="muh_pb")
                 
             with col_m2:
                 if farkli_tutar_var_mi:
@@ -478,10 +525,8 @@ with tab1:
                 else:
                     muh_tutar = float(varsayilan_onaylanan_tutar)
                     
-                muh_para_birimi = st.selectbox("Para Birimi", options=["TL (₺)", "USD ($)", "EUR (€)"], key="muh_pb")
                 muh_kur = st.number_input("TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
             
-            hesaplanan_tl = muh_tutar if "TL" in muh_para_birimi else muh_tutar * muh_kur
             muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Farklı tutar girildiyse gerekçesi...", key="muh_aciklama_val")
             
             btn_odeme_kaydet = st.form_submit_button("💾 Ödeme / Tahsilat Kaydet", use_container_width=True, type="primary")
@@ -490,27 +535,24 @@ with tab1:
                 if not muh_musteri.strip() or muh_tutar < 0:
                     st.error("Lütfen geçerli bir Müşteri Adı ve Tutar giriniz!")
                 else:
-                    gosterim_str = format_para(muh_tutar, muh_para_birimi)
-                    
-                    max_id = max([item.get("ID", 0) for item in st.session_state["odeme_kayitlari"]]) if st.session_state["odeme_kayitlari"] else 0
-                    yeni_odeme_id = max_id + 1
+                    mevcut_odemeler = st.session_state["odeme_kayitlari"]
+                    yeni_odeme_id = max([item.get("ID", 0) for item in mevcut_odemeler]) + 1 if mevcut_odemeler else 1
 
-                    st.session_state["odeme_kayitlari"].insert(0, {
+                    yeni_kayit_dict = {
                         "ID": yeni_odeme_id,
-                        "İşlem Tarihi": muh_tarih,
-                        "Dönem": secilen_donem_adi,
-                        "Müşteri Adı": muh_musteri.strip(),
-                        "Tutar": muh_tutar,
-                        "Para Birimi": muh_para_birimi,
-                        "Kur": muh_kur,
-                        "TL Karşılığı": hesaplanan_tl,
-                        "Gösterim": gosterim_str,
-                        "Açıklama": muh_aciklama.strip() if muh_aciklama.strip() else f"{secilen_donem_adi} dönemi tahsilatı.",
-                        "Kaydeden": user["name"],
-                        "Durum": muh_durum_tipi
-                    })
-                    st.success("Ödeme kaydı sisteme başarıyla işlendi!")
-                    st.rerun()
+                        "MÜŞTERİ ADI": muh_musteri.strip(),
+                        "ÖDEME DURUMU": muh_durum_tipi,
+                        "PARA BİRİMİ": muh_para_birimi,
+                        "TCBM KUR": muh_kur,
+                        "AÇıklama NOTLAR": muh_aciklama.strip() if muh_aciklama.strip() else f"{secilen_donem_adi} dönemi tahsilatı.",
+                        "GERÇEKLEŞEN GELEN ÖZEL TUTAR": muh_tutar
+                    }
+                    
+                    mevcut_odemeler.append(yeni_kayit_dict)
+                    if update_odeme_google_sheet(mevcut_odemeler):
+                        st.session_state["odeme_kayitlari"] = mevcut_odemeler
+                        st.success("Ödeme kaydı sisteme ve Google Sheets'e başarıyla işlendi!")
+                        st.rerun()
     else:
         st.subheader("📊 Kayıt Listesi (Salt Okunur)")
         st.dataframe(df, use_container_width=True)
@@ -597,8 +639,8 @@ with tab3:
     aktif_talep = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
     aktif_onay = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
     
-    m_talep = pd.to_numeric(manuel_df['Talep Edilen Kayıp Zaman (Saat)'], errors='coerce').sum()
-    m_onay = pd.to_numeric(manuel_df['Onaylanan Kayıp Zaman (Saat)'], errors='coerce').sum()
+    m_talep = pd.to_numeric(manuel_df['TALEP EDİLEN SAAT'], errors='coerce').sum()
+    m_onay = pd.to_numeric(manuel_df['ONAYLANAN SAAT'], errors='coerce').sum()
     
     st.markdown("### 🌐 Kümülatif Zaman Özeti")
     tz1, tz2 = st.columns(2)
@@ -606,9 +648,9 @@ with tab3:
     tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
     st.markdown("### 💼 Geçmiş Dönem Finansal & Kesinti Kümülatif Özeti")
-    m_talep_tutar = pd.to_numeric(manuel_df['Talep Edilen Tutar (TL)'], errors='coerce').sum()
-    m_onay_tutar = pd.to_numeric(manuel_df['Onaylanan Tutar (TL)'], errors='coerce').sum()
-    m_kesinti_tutar = pd.to_numeric(manuel_df['Legrand Kesinti Tutarı (TL)'], errors='coerce').sum()
+    m_talep_tutar = pd.to_numeric(manuel_df['TALEP EDİLEN TUTAR'], errors='coerce').sum()
+    m_onay_tutar = pd.to_numeric(manuel_df['ONAYLANAN TUTAR'], errors='coerce').sum()
+    m_kesinti_tutar = pd.to_numeric(manuel_df['KESİNTİ TUTARI'], errors='coerce').sum()
     
     ft1, ft2, ft3 = st.columns(3)
     ft1.metric("Geçmiş Toplam Talep Edilen Tutar", f"{m_talep_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
@@ -619,32 +661,27 @@ with tab3:
     st.markdown("### 💰 Finansal Ödeme Analizi")
     
     if not odeme_analiz_df.empty:
-        if "Durum" not in odeme_analiz_df.columns:
-            odeme_analiz_df["Durum"] = "Gelen Ödeme"
+        if "ÖDEME DURUMU" not in odeme_analiz_df.columns:
+            odeme_analiz_df["ÖDEME DURUMU"] = "Gelen Ödeme"
             
-        gelen_toplam = odeme_analiz_df[odeme_analiz_df["Durum"] == "Gelen Ödeme"]["TL Karşılığı"].sum()
-        bekleyen_toplam = odeme_analiz_df[odeme_analiz_df["Durum"] == "Bekleyen Ödeme"]["TL Karşılığı"].sum()
-        tum_toplam = odeme_analiz_df["TL Karşılığı"].sum()
+        def hesapla_tl_karsilik(row):
+            tutar = float(row.get("GERÇEKLEŞEN GELEN ÖZEL TUTAR", 0.0) or 0.0)
+            kur = float(row.get("TCBM KUR", 1.0) or 1.0)
+            pb = str(row.get("PARA BİRİMİ", "TL"))
+            return tutar if "TL" in pb else tutar * kur
+
+        odeme_analiz_df["TL_Karsiligi"] = odeme_analiz_df.apply(hesapla_tl_karsilik, axis=1)
+        
+        gelen_toplam = odeme_analiz_df[odeme_analiz_df["ÖDEME DURUMU"] == "Gelen Ödeme"]["TL_Karsiligi"].sum()
+        bekleyen_toplam = odeme_analiz_df[odeme_analiz_df["ÖDEME DURUMU"] == "Bekleyen Ödeme"]["TL_Karsiligi"].sum()
+        tum_toplam = odeme_analiz_df["TL_Karsiligi"].sum()
         
         od_col1, od_col2, od_col3 = st.columns(3)
         od_col1.metric("📥 Gelen Ödemeler Toplamı", f"{gelen_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
         od_col2.metric("⏳ Bekleyen Ödemeler Toplamı", f"{bekleyen_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
         od_col3.metric("📊 Tüm Ödemeler Kümülatif", f"{tum_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
         
-        odeme_filtre_secim = st.radio(
-            "Görüntülenecek Ödeme Kategorisi:",
-            ["Tüm Ödemeler", "Gelen Ödemeler", "Bekleyen Ödemeler"],
-            horizontal=True
-        )
-        
-        if odeme_filtre_secim == "Gelen Ödemeler":
-            gosterilecek_odeme_df = odeme_analiz_df[odeme_analiz_df["Durum"] == "Gelen Ödeme"]
-        elif odeme_filtre_secim == "Bekleyen Ödemeler":
-            gosterilecek_odeme_df = odeme_analiz_df[odeme_analiz_df["Durum"] == "Bekleyen Ödeme"]
-        else:
-            gosterilecek_odeme_df = odeme_analiz_df
-            
-        st.dataframe(gosterilecek_odeme_df, use_container_width=True)
+        st.dataframe(odeme_analiz_df.drop(columns=["TL_Karsiligi"], errors="ignore"), use_container_width=True)
     else:
         st.info("Kayıtlı finansal ödeme verisi bulunmuyor.")
 
@@ -668,40 +705,41 @@ with tab3:
 
 # ---------------- TAB 4: GEÇMİŞ DÖNEM ----------------
 with tab4:
-    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri (Kalıcı Bellek & Sheets Güvenceli)")
+    st.subheader("📁 Geçmiş Dönem Manuel Özet Veriler (`gecmisdonem`)")
     gecmis_temp_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
     
     gecmis_df_editable = st.data_editor(
         gecmis_temp_df,
         column_config={
-            "Dönem": st.column_config.TextColumn("Dönem", disabled=True),
-            "Talep Edilen Kayıp Zaman (Saat)": st.column_config.NumberColumn("Talep Edilen (Saat)", format="%.2f"),
-            "Onaylanan Kayıp Zaman (Saat)": st.column_config.NumberColumn("Onaylanan (Saat)", format="%.2f"),
-            "Saatlik İşçilik Ücreti (TL)": st.column_config.NumberColumn("Saatlik Ücret (TL)", format="%.2f"),
-            "Talep Edilen Tutar (TL)": st.column_config.NumberColumn("Talep Edilen Tutar (TL)", format="%.2f"),
-            "Onaylanan Tutar (TL)": st.column_config.NumberColumn("Onaylanan Tutar (TL)", format="%.2f"),
-            "Legrand Kesinti Tutarı (TL)": st.column_config.NumberColumn("Kesinti Tutarı (TL)", format="%.2f"),
-            "Kesinti Açıklaması": st.column_config.TextColumn("Kesinti Açıklaması"),
-            "Genel Açıklama": st.column_config.TextColumn("Genel Açıklama")
+            "ID": st.column_config.NumberColumn("ID", disabled=True),
+            "DÖNEM": st.column_config.TextColumn("DÖNEM", disabled=True),
+            "TALEP EDİLEN SAAT": st.column_config.NumberColumn("TALEP EDİLEN SAAT", format="%.2f"),
+            "ONAYLANAN SAAT": st.column_config.NumberColumn("ONAYLANAN SAAT", format="%.2f"),
+            "SAATLİK ÜCRET": st.column_config.NumberColumn("SAATLİK ÜCRET", format="%.2f"),
+            "TALEP EDİLEN TUTAR": st.column_config.NumberColumn("TALEP EDİLEN TUTAR", format="%.2f"),
+            "ONAYLANAN TUTAR": st.column_config.NumberColumn("ONAYLANAN TUTAR", format="%.2f"),
+            "KESİNTİ TUTARI": st.column_config.NumberColumn("KESİNTİ TUTARI", format="%.2f"),
+            "KESİNTİ AÇIKLAMASI": st.column_config.TextColumn("KESİNTİ AÇIKLAMASI"),
+            "GENEL AÇIKLAMA": st.column_config.TextColumn("GENEL AÇIKLAMA")
         },
         use_container_width=True,
         key="gecmis_editor_final"
     )
     
-    if st.button("🔄 Saatleri Saatlik Ücretle Çarp & Kaydet", use_container_width=True, type="primary"):
+    if st.button("🔄 Saatleri Saatlik Ücretle Çarp & Sheets'e Kaydet", use_container_width=True, type="primary"):
         updated_records = []
         for index, row in gecmis_df_editable.iterrows():
-            t_saat = float(row.get("Talep Edilen Kayıp Zaman (Saat)", 0.0))
-            o_saat = float(row.get("Onaylanan Kayıp Zaman (Saat)", 0.0))
-            s_ucret = float(row.get("Saatlik İşçilik Ücreti (TL)", 0.0))
+            t_saat = float(row.get("TALEP EDİLEN SAAT", 0.0) or 0.0)
+            o_saat = float(row.get("ONAYLANAN SAAT", 0.0) or 0.0)
+            s_ucret = float(row.get("SAATLİK ÜCRET", 0.0) or 0.0)
             
-            row["Talep Edilen Tutar (TL)"] = round(t_saat * s_ucret, 2)
-            row["Onaylanan Tutar (TL)"] = round(o_saat * s_ucret, 2)
+            row["TALEP EDİLEN TUTAR"] = round(t_saat * s_ucret, 2)
+            row["ONAYLANAN TUTAR"] = round(o_saat * s_ucret, 2)
             updated_records.append(row.to_dict())
             
         if update_gecmis_google_sheet(updated_records):
             st.session_state["gecmis_ozetler"] = updated_records
-            st.success("Geçmiş dönem verileriniz başarıyla kaydedildi ve koruma altına alındı!")
+            st.success("Geçmiş dönem verileriniz başarıyla Google Sheets'e kaydedildi!")
             st.rerun()
 
 # ---------------- TAB 5: SOHBET ----------------
@@ -736,7 +774,7 @@ with tab5:
 
 # ---------------- TAB 6: ÖDEMELER ----------------
 with tab6:
-    st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu")
+    st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu (`odeme-tahsilat-takip`)")
     yetkili_mi = (user["role"] == "admin" or user["role"] == "accounting")
     
     odeme_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
@@ -756,30 +794,41 @@ with tab6:
                 use_container_width=True,
                 key="odeme_editor_yonetim"
             )
+            
+            if st.button("🔄 Ödeme Tablosu Değişikliklerini Google Sheets'e Kaydet", use_container_width=True):
+                clean_odeme_df = edited_odeme_df.drop(columns=["Seç"], errors="ignore")
+                liste_kayitlari = clean_odeme_df.to_dict(orient="records")
+                if update_odeme_google_sheet(liste_kayitlari):
+                    st.session_state["odeme_kayitlari"] = liste_kayitlari
+                    st.success("Ödeme tablosu güncellemeleri Google Sheets'e kaydedildi!")
+                    st.rerun()
         else:
             st.dataframe(odeme_df, use_container_width=True)
         
     if yetkili_mi:
         st.markdown("---")
-        st.markdown("### ⚙️ Ödeme Kayıtları Yönetimi")
+        st.markdown("### ⚙️ Ödeme Kayıtları Silme / Yönetimi")
         
         col_odm_1, col_odm_2 = st.columns(2)
         with col_odm_1:
-            if st.button("🗑️ İşaretlenen / Seçili Ödemeleri Sil", use_container_width=True, type="primary"):
+            if st.button("🗑️ Tabloda İşaretlenen Seçili Ödemeleri Sil", use_container_width=True, type="primary"):
                 secilen_odemeler = edited_odeme_df[edited_odeme_df["Seç"] == True]
                 if secilen_odemeler.empty:
                     st.warning("Lütfen silmek istediğiniz ödeme satırının solundaki 'Seç' kutucuğunu işaretleyin!")
                 else:
                     kalan_odemeler_df = edited_odeme_df[edited_odeme_df["Seç"] == False].drop(columns=["Seç"], errors="ignore")
-                    st.session_state["odeme_kayitlari"] = kalan_odemeler_df.to_dict(orient="records")
-                    st.success(f"Seçilen {len(secilen_odemeler)} adet ödeme kaydı silindi!")
-                    st.rerun()
+                    yeni_liste = kalan_odemeler_df.to_dict(orient="records")
+                    if update_odeme_google_sheet(yeni_liste):
+                        st.session_state["odeme_kayitlari"] = yeni_liste
+                        st.success("Seçilen ödeme kayıtları silindi ve Sheets güncellendi!")
+                        st.rerun()
                     
         with col_odm_2:
             if st.button("⚠️ Tüm Ödeme Kayıtlarını Temizle", type="secondary", use_container_width=True):
-                st.session_state["odeme_kayitlari"] = []
-                st.success("Tüm ödeme kayıtları temizlendi!")
-                st.rerun()
+                if update_odeme_google_sheet([]):
+                    st.session_state["odeme_kayitlari"] = []
+                    st.success("Tüm ödeme kayıtları temizlendi!")
+                    st.rerun()
                 
         st.markdown("---")
         st.markdown("### 🔍 ID ile Doğrudan Hızlı Ödeme Silme")
@@ -792,9 +841,10 @@ with tab6:
                 mevcut_odemeler = st.session_state["odeme_kayitlari"]
                 yeni_odemeler = [item for item in mevcut_odemeler if item.get("ID") != silinecek_odeme_id]
                 if len(yeni_odemeler) < len(mevcut_odemeler):
-                    st.session_state["odeme_kayitlari"] = yeni_odemeler
-                    st.success(f"ID #{silinecek_odeme_id} numaralı ödeme kaydı başarıyla silindi!")
-                    st.rerun()
+                    if update_odeme_google_sheet(yeni_odemeler):
+                        st.session_state["odeme_kayitlari"] = yeni_odemeler
+                        st.success(f"ID #{silinecek_odeme_id} numaralı ödeme kaydı silindi!")
+                        st.rerun()
                 else:
                     st.error(f"Sistemde #{silinecek_odeme_id} ID numarasına ait ödeme kaydı bulunamadı.")
     else:
