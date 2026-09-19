@@ -180,7 +180,7 @@ if "chat_messages" not in st.session_state:
         {"zaman": "19.09.2026 10:35", "gonderen": "Ömer OCAK", "mesaj": "Tabii ki Mehmet Bey, hemen inceliyorum.", "dosya_linki": ""}
     ]
 
-# --- ORTAK MUHASEBE ÖDEME / TAHSİLAT HAFIZASI (GEÇMİŞTEN GELENLER DAHİL) ---
+# --- ORTAK MUHASEBE ÖDEME / TAHSİLAT HAFIZASI ---
 if "odeme_kayitlari" not in st.session_state:
     st.session_state["odeme_kayitlari"] = [
         {
@@ -211,16 +211,79 @@ if "odeme_kayitlari" not in st.session_state:
         }
     ]
 
-# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ ---
+# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ (YENİ FİNANSAL ALANLAR EKLENDİ) ---
 if "gecmis_ozetler" not in st.session_state:
     st.session_state["gecmis_ozetler"] = [
-        {"Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Süreç başlangıcı"},
-        {"Dönem": "Mart 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
-        {"Dönem": "Nisan 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
-        {"Dönem": "Mayıs 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
-        {"Dönem": "Haziran 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
-        {"Dönem": "Temmuz 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"},
-        {"Dönem": "Ağustos 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"}
+        {
+            "Dönem": "Şubat 2026", 
+            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
+            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, 
+            "Onaylanan Tutar (TL)": 0.0, 
+            "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Süreç başlangıcı", 
+            "Genel Açıklama": "Başlangıç"
+        },
+        {
+            "Dönem": "Mart 2026", 
+            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
+            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, 
+            "Onaylanan Tutar (TL)": 0.0, 
+            "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", 
+            "Genel Açıklama": "Beklemede"
+        },
+        {
+            "Dönem": "Nisan 2026", 
+            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
+            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, 
+            "Onaylanan Tutar (TL)": 0.0, 
+            "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", 
+            "Genel Açıklama": "Beklemede"
+        },
+        {
+            "Dönem": "Mayıs 2026", 
+            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
+            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, 
+            "Onaylanan Tutar (TL)": 0.0, 
+            "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", 
+            "Genel Açıklama": "Beklemede"
+        },
+        {
+            "Dönem": "Haziran 2026", 
+            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
+            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, 
+            "Onaylanan Tutar (TL)": 0.0, 
+            "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", 
+            "Genel Açıklama": "Beklemede"
+        },
+        {
+            "Dönem": "Temmuz 2026", 
+            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
+            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, 
+            "Onaylanan Tutar (TL)": 0.0, 
+            "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", 
+            "Genel Açıklama": "Beklemede"
+        },
+        {
+            "Dönem": "Ağustos 2026", 
+            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
+            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, 
+            "Onaylanan Tutar (TL)": 0.0, 
+            "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", 
+            "Genel Açıklama": "Beklemede"
+        }
     ]
 
 def format_para(tutar, birim):
@@ -550,6 +613,17 @@ with tab3:
     tz1.metric("Toplam Talep Edilen Kayıp Zaman", f"{aktif_talep + m_talep:.2f} Saat")
     tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
+    # YENİ EKLENEN MANUEL FİNANSAL ÖZET METRİKLERİ
+    st.markdown("### 💼 Geçmiş Dönem Finansal & Kesinti Kümülatif Özeti")
+    m_talep_tutar = pd.to_numeric(manuel_df['Talep Edilen Tutar (TL)'], errors='coerce').sum()
+    m_onay_tutar = pd.to_numeric(manuel_df['Onaylanan Tutar (TL)'], errors='coerce').sum()
+    m_kesinti_tutar = pd.to_numeric(manuel_df['Legrand Kesinti Tutarı (TL)'], errors='coerce').sum()
+    
+    ft1, ft2, ft3 = st.columns(3)
+    ft1.metric("Geçmiş Toplam Talep Edilen Tutar", f"{m_talep_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+    ft2.metric("Geçmiş Toplam Onaylanan Tutar", f"{m_onay_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+    ft3.metric("Geçmiş Toplam Kesinti Tutarı", f"{m_kesinti_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+    
     st.markdown("---")
     st.markdown("### 💰 Finansal Ödeme Analizi (Geçmiş Devirler Dahil Otomatik Güncellenen)")
     
@@ -603,21 +677,25 @@ with tab3:
 
 # ---------------- TAB 4: GEÇMİŞ DÖNEM ----------------
 with tab4:
-    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri Yönetimi")
+    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri & Finansal / Kesinti Yönetimi")
     gecmis_df_editable = st.data_editor(
         pd.DataFrame(st.session_state["gecmis_ozetler"]),
         column_config={
             "Dönem": st.column_config.TextColumn("Dönem", disabled=True),
-            "Talep Edilen Kayıp Zaman (Saat)": st.column_config.NumberColumn("Talep Edilen", format="%.2f"),
-            "Onaylanan Kayıp Zaman (Saat)": st.column_config.NumberColumn("Onaylanan", format="%.2f"),
-            "Açıklama": st.column_config.TextColumn("Açıklama")
+            "Talep Edilen Kayıp Zaman (Saat)": st.column_config.NumberColumn("Talep Edilen (Saat)", format="%.2f"),
+            "Onaylanan Kayıp Zaman (Saat)": st.column_config.NumberColumn("Onaylanan (Saat)", format="%.2f"),
+            "Talep Edilen Tutar (TL)": st.column_config.NumberColumn("Talep Edilen Tutar (TL)", format="%.2f"),
+            "Onaylanan Tutar (TL)": st.column_config.NumberColumn("Onaylanan Tutar (TL)", format="%.2f"),
+            "Legrand Kesinti Tutarı (TL)": st.column_config.NumberColumn("Kesinti Tutarı (TL)", format="%.2f"),
+            "Kesinti Açıklaması": st.column_config.TextColumn("Kesinti Açıklaması"),
+            "Genel Açıklama": st.column_config.TextColumn("Genel Açıklama")
         },
         use_container_width=True,
         key="gecmis_editor_final"
     )
-    if st.button("🔄 Geçmiş Dönem Verilerini Kaydet", use_container_width=True, type="primary"):
+    if st.button("🔄 Geçmiş Dönem Finansal & Zaman Verilerini Kaydet", use_container_width=True, type="primary"):
         st.session_state["gecmis_ozetler"] = gecmis_df_editable.to_dict(orient="records")
-        st.success("Geçmiş dönem verileri güncellendi!")
+        st.success("Geçmiş dönem verileri ve kesintiler başarıyla güncellendi!")
         st.rerun()
 
 # ---------------- TAB 5: SOHBET ----------------
