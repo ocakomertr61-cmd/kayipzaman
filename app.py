@@ -155,15 +155,14 @@ def load_gecmis_data_cached():
             try:
                 worksheet = spreadsheet.worksheet("gecmisdonem")
                 data = worksheet.get_all_records()
-                # Boş satırları filtrele (!== yerine != kullanıldı)
                 data = [row for row in data if row.get("ID") != "" and row.get("ID") is not None]
                 df = pd.DataFrame(data)
                 if df.empty:
                     df = pd.DataFrame(varsayilan_liste)
             except:
-                return varsayilan_liste
+                df = pd.DataFrame(varsayilan_liste)
         else:
-            return varsayilan_liste
+            df = pd.DataFrame(varsayilan_liste)
             
         for col in GECMIS_SUTUNLAR:
             if col not in df.columns:
@@ -215,9 +214,9 @@ def load_odeme_data_cached():
                 if df.empty:
                     df = pd.DataFrame(varsayilan_odeme)
             except:
-                return varsayilan_odeme
+                df = pd.DataFrame(varsayilan_odeme)
         else:
-            return varsayilan_odeme
+            df = pd.DataFrame(varsayilan_odeme)
             
         for col in ODEME_SUTUNLAR:
             if col not in df.columns:
@@ -278,14 +277,6 @@ if "gecmis_ozetler" not in st.session_state:
 
 if "odeme_kayitlari" not in st.session_state:
     st.session_state["odeme_kayitlari"] = load_odeme_data_cached()
-
-def format_para(tutar, birim):
-    try:
-        tutar_val = float(tutar)
-        formatted = f"{tutar_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        return f"{formatted} {birim}"
-    except:
-        return f"{tutar} {birim}"
 
 # --- LOGIN EKRANI ---
 if not st.session_state["logged_in"]:
@@ -642,11 +633,20 @@ with tab2:
 with tab3:
     st.subheader("📈 Gelişmiş Analitik Grafikler & Ödeme Durumları")
     df = load_data()
-    manuel_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
-    odeme_analiz_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
     
-    aktif_talep = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
-    aktif_onay = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
+    # Güvenli Geçmiş Veri Çerçevesi Dönüşümü ve Sütun Doğrulaması
+    manuel_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
+    for col in GECMIS_SUTUNLAR:
+        if col not in manuel_df.columns:
+            manuel_df[col] = 0.0 if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
+
+    odeme_analiz_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
+    for col in ODEME_SUTUNLAR:
+        if col not in odeme_analiz_df.columns:
+            odeme_analiz_df[col] = 0.0 if "TUTAR" in col or "KUR" in col else ""
+    
+    aktif_talep = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty and 'Hesaplanan Zaman (Saat)' in df.columns else 0.0
+    aktif_onay = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty and 'Hesaplanan Zaman (Saat)' in df.columns else 0.0
     
     m_talep = pd.to_numeric(manuel_df['TALEP EDİLEN SAAT'], errors='coerce').sum() if not manuel_df.empty else 0.0
     m_onay = pd.to_numeric(manuel_df['ONAYLANAN SAAT'], errors='coerce').sum() if not manuel_df.empty else 0.0
@@ -716,7 +716,10 @@ with tab3:
 with tab4:
     st.subheader("📁 Geçmiş Dönem Manuel Özet Veriler (`gecmisdonem`)")
     gecmis_temp_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
-    
+    for col in GECMIS_SUTUNLAR:
+        if col not in gecmis_temp_df.columns:
+            gecmis_temp_df[col] = 0.0 if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
+            
     gecmis_df_editable = st.data_editor(
         gecmis_temp_df,
         column_config={
@@ -787,6 +790,10 @@ with tab6:
     yetkili_mi = (user["role"] == "admin" or user["role"] == "accounting")
     
     odeme_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
+    for col in ODEME_SUTUNLAR:
+        if col not in odeme_df.columns:
+            odeme_df[col] = ""
+
     if odeme_df.empty:
         st.info("Henüz ödeme kaydı bulunmuyor.")
     else:
