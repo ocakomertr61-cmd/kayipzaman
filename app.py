@@ -178,13 +178,21 @@ def update_gecmis_google_sheet(liste_veri):
         if not client:
             return True
         spreadsheet = client.open_by_url(SHEET_URL)
-        worksheet = spreadsheet.worksheet("gecmisdonem")
+        try:
+            worksheet = spreadsheet.worksheet("gecmisdonem")
+        except:
+            worksheet = spreadsheet.add_worksheet(title="gecmisdonem", rows="100", cols="20")
             
         df_to_write = pd.DataFrame(liste_veri)
+        for col in GECMIS_SUTUNLAR:
+            if col not in df_to_write.columns:
+                df_to_write[col] = ""
+        df_to_write = df_to_write[GECMIS_SUTUNLAR]
+        
         for col in ["TALEP EDİLEN SAAT", "ONAYLANAN SAAT", "SAATLİK ÜCRET", "TALEP EDİLEN TUTAR", "ONAYLANAN TUTAR", "KESİNTİ TUTARI"]:
             if col in df_to_write.columns:
                 num_series = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
-                df_to_write[col] = num_series.apply(lambda x: f"{x:.2f}".replace('.', ','))
+                df_to_write[col] = num_series.apply(lambda x: str(x).replace('.', ','))
                 
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
@@ -195,7 +203,7 @@ def update_gecmis_google_sheet(liste_veri):
         st.error(f"Geçmiş dönem sheets güncelleme hatası: {e}")
         return False
 
-# --- ÖDEME TAHSİLAT (odeme-tahsilat-takip) İŞLEMLERİ ---
+# --- ÖDEME TAHSİLAT İŞLEMLERİ ---
 @st.cache_data(ttl=600, show_spinner="Ödeme tahsilat verileri yükleniyor...")
 def load_odeme_data_cached():
     varsayilan_odeme = [
@@ -232,12 +240,20 @@ def update_odeme_google_sheet(liste_veri):
         if not client:
             return True
         spreadsheet = client.open_by_url(SHEET_URL)
-        worksheet = spreadsheet.worksheet("odeme-tahsilat-takip")
+        try:
+            worksheet = spreadsheet.worksheet("odeme-tahsilat-takip")
+        except:
+            worksheet = spreadsheet.add_worksheet(title="odeme-tahsilat-takip", rows="100", cols="20")
             
         df_to_write = pd.DataFrame(liste_veri)
+        for col in ODEME_SUTUNLAR:
+            if col not in df_to_write.columns:
+                df_to_write[col] = ""
+        df_to_write = df_to_write[ODEME_SUTUNLAR]
+
         if "GERÇEKLEŞEN GELEN ÖZEL TUTAR" in df_to_write.columns:
             num_series = pd.to_numeric(df_to_write["GERÇEKLEŞEN GELEN ÖZEL TUTAR"], errors='coerce').fillna(0.0).round(2)
-            df_to_write["GERÇEKLEŞEN GELEN ÖZEL TUTAR"] = num_series.apply(lambda x: f"{x:.2f}".replace('.', ','))
+            df_to_write["GERÇEKLEŞEN GELEN ÖZEL TUTAR"] = num_series.apply(lambda x: str(x).replace('.', ','))
             
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
@@ -504,13 +520,13 @@ with tab1:
         if "muh_secilen_donem_str" not in st.session_state:
             st.session_state["muh_secilen_donem_str"] = donem_secenekleri[0]
 
-        secilen_donem_str = st.selectbox("Ömer'in Girdiği Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
+        secilen_donem_str = st.selectbox("Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
         
         secilen_donem_adi = secilen_donem_str.split(" — ")[0]
         secilen_item = next((item for item in gecmis_liste if item.get("DÖNEM") == secilen_donem_adi), None)
         varsayilan_onaylanan_tutar = float(secilen_item.get("ONAYLANAN TUTAR", 0.0) or 0.0) if secilen_item else 0.0
         
-        farkli_tutar_var_mi = st.checkbox("Gelen tutar onaylanan tutardan farklı mı? (Özel tutar girmek için işaretleyin)", key="muh_farkli_tutar_check")
+        farkli_tutar_var_mi = st.checkbox("Gelen tutar onaylanan tutardan farklı mı?", key="muh_farkli_tutar_check")
         
         with st.form("muhasebe_odeme_form", clear_on_submit=True):
             col_m1, col_m2 = st.columns(2)
@@ -527,7 +543,7 @@ with tab1:
                     
                 muh_kur = st.number_input("TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
             
-            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Farklı tutar girildiyse gerekçesi...", key="muh_aciklama_val")
+            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Notlar...", key="muh_aciklama_val")
             
             btn_odeme_kaydet = st.form_submit_button("💾 Ödeme / Tahsilat Kaydet", use_container_width=True, type="primary")
             
@@ -561,7 +577,7 @@ with tab1:
 with tab2:
     df = load_data()
     if user["role"] == "admin":
-        st.subheader("📊 Kayıt Yönetimi (Düzenle & İstediğin Kaydı Seçerek Sil)")
+        st.subheader("📊 Kayıt Yönetimi (Düzenle & Sil)")
         if df.empty or df.dropna(how='all').empty:
             st.info("Henüz kayıtlı veri bulunmuyor.")
         else:
@@ -595,14 +611,14 @@ with tab2:
                         st.success("Tablo değişiklikleri başarıyla Google Sheets'e kaydedildi!")
                         st.rerun()
             with c_secili_sil:
-                if st.button("🗑️ İşaretlenen Mükerrer / Seçili Kayıtları Sil", use_container_width=True, type="primary"):
+                if st.button("🗑️ İşaretlenen Kayıtları Sil", use_container_width=True, type="primary"):
                     secilenler = edited_df[edited_df["Seç"] == True]
                     if secilenler.empty:
                         st.warning("Lütfen silmek istediğiniz satırın solundaki 'Seç' kutucuğunu işaretleyin!")
                     else:
                         kalan_df = edited_df[edited_df["Seç"] == False].drop(columns=["Seç"], errors="ignore")
                         if update_google_sheet(kalan_df):
-                            st.success(f"Seçilen {len(secilenler)} adet kayıt Google Sheets'ten kalıcı olarak silindi!")
+                            st.success(f"Seçilen {len(secilenler)} adet kayıt Google Sheets'ten silindi!")
                             st.rerun()
             with c_indir:
                 download_df = df.drop(columns=["Seç"], errors="ignore")
@@ -610,7 +626,7 @@ with tab2:
                 st.download_button("📥 CSV İndir", data=csv_data, file_name="kayip_zaman.csv", mime="text/csv", use_container_width=True)
             
             st.markdown("---")
-            st.markdown("### 🔍 ID ile Doğrudan Hızlı Silme (Mükerrer Kayıt İçin)")
+            st.markdown("### 🔍 ID ile Doğrudan Hızlı Silme")
             col_id1, col_id2 = st.columns([2, 1])
             with col_id1:
                 silinecek_id_input = st.number_input("Silmek İstediğiniz Kaydın ID Numarası", min_value=1, step=1, key="tekli_sil_id_input")
@@ -621,20 +637,19 @@ with tab2:
                     if 'ID' in mevcut_df_id.columns and silinecek_id_input in mevcut_df_id['ID'].values:
                         yeni_temiz_df = mevcut_df_id[mevcut_df_id['ID'] != silinecek_id_input]
                         if update_google_sheet(yeni_temiz_df):
-                            st.success(f"ID #{silinecek_id_input} numaralı kayıt başarıyla silindi ve Sheets güncellendi!")
+                            st.success(f"ID #{silinecek_id_input} numaralı kayıt başarıyla silindi!")
                             st.rerun()
                     else:
-                        st.error(f"Sistemde #{silinecek_id_input} ID numarasına ait bir kayıt bulunamadı.")
+                        st.error(f"Sistemde #{silinecek_id_input} ID numarasına ait kayıt bulunamadı.")
     else:
         st.subheader("📊 Kayıt Listesi")
         st.dataframe(df, use_container_width=True)
 
 # ---------------- TAB 3: ANALİZ, GRAFİK & ÖDEMELER ----------------
 with tab3:
-    st.subheader("📈 Gelişmiş Analitik Grafikler & Ödeme Durumları")
+    st.subheader("📈 Analitik Grafikler & Ödemeler")
     df = load_data()
     
-    # Güvenli Geçmiş Veri Çerçevesi Dönüşümü ve Sütun Doğrulaması
     manuel_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
     for col in GECMIS_SUTUNLAR:
         if col not in manuel_df.columns:
@@ -656,7 +671,7 @@ with tab3:
     tz1.metric("Toplam Talep Edilen Kayıp Zaman", f"{aktif_talep + m_talep:.2f} Saat")
     tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
-    st.markdown("### 💼 Geçmiş Dönem Finansal & Kesinti Kümülatif Özeti")
+    st.markdown("### 💼 Geçmiş Dönem Finansal & Kesinti Özeti")
     m_talep_tutar = pd.to_numeric(manuel_df['TALEP EDİLEN TUTAR'], errors='coerce').sum() if not manuel_df.empty else 0.0
     m_onay_tutar = pd.to_numeric(manuel_df['ONAYLANAN TUTAR'], errors='coerce').sum() if not manuel_df.empty else 0.0
     m_kesinti_tutar = pd.to_numeric(manuel_df['KESİNTİ TUTARI'], errors='coerce').sum() if not manuel_df.empty else 0.0
@@ -686,9 +701,9 @@ with tab3:
         tum_toplam = odeme_analiz_df["TL_Karsiligi"].sum()
         
         od_col1, od_col2, od_col3 = st.columns(3)
-        od_col1.metric("📥 Gelen Ödemeler Toplamı", f"{gelen_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
-        od_col2.metric("⏳ Bekleyen Ödemeler Toplamı", f"{bekleyen_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
-        od_col3.metric("📊 Tüm Ödemeler Kümülatif", f"{tum_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+        od_col1.metric("📥 Gelen Ödemeler", f"{gelen_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+        od_col2.metric("⏳ Bekleyen Ödemeler", f"{bekleyen_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+        od_col3.metric("📊 Kümülatif Toplam", f"{tum_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
         
         st.dataframe(odeme_analiz_df.drop(columns=["TL_Karsiligi"], errors="ignore"), use_container_width=True)
     else:
@@ -827,7 +842,7 @@ with tab6:
         
         col_odm_1, col_odm_2 = st.columns(2)
         with col_odm_1:
-            if st.button("🗑️ Tabloda İşaretlenen Seçili Ödemeleri Sil", use_container_width=True, type="primary"):
+            if st.button("🗑️ İşaretlenen Ödemeleri Sil", use_container_width=True, type="primary"):
                 secilen_odemeler = edited_odeme_df[edited_odeme_df["Seç"] == True]
                 if secilen_odemeler.empty:
                     st.warning("Lütfen silmek istediğiniz ödeme satırının solundaki 'Seç' kutucuğunu işaretleyin!")
@@ -836,7 +851,7 @@ with tab6:
                     yeni_liste = kalan_odemeler_df.to_dict(orient="records")
                     if update_odeme_google_sheet(yeni_liste):
                         st.session_state["odeme_kayitlari"] = yeni_liste
-                        st.success("Seçilen ödeme kayıtları silindi ve Sheets güncellendi!")
+                        st.success("Seçilen ödeme kayıtları silindi!")
                         st.rerun()
                     
         with col_odm_2:
@@ -847,7 +862,7 @@ with tab6:
                     st.rerun()
                 
         st.markdown("---")
-        st.markdown("### 🔍 ID ile Doğrudan Hızlı Ödeme Silme")
+        st.markdown("### 🔍 ID ile Hızlı Ödeme Silme")
         col_oid1, col_oid2 = st.columns([2, 1])
         with col_oid1:
             silinecek_odeme_id = st.number_input("Silmek İstediğiniz Ödeme ID Numarası", min_value=1, step=1, key="tekli_odeme_sil_id")
@@ -864,4 +879,4 @@ with tab6:
                 else:
                     st.error(f"Sistemde #{silinecek_odeme_id} ID numarasına ait ödeme kaydı bulunamadı.")
     else:
-        st.info("ℹ️ Ödeme kayıtlarını silme ve yönetme yetkisi yalnızca yetkili kullanıcılara özeldir.")
+        st.info("ℹ️ Ödeme kayıtlarını silme yetkisi yalnızca yetkili kullanıcılara özeldir.")
