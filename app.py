@@ -128,12 +128,44 @@ if "users" not in st.session_state:
         "omer.ocak": {
             "password": "OCK6161",
             "name": "Ömer OCAK",
-            "role": "admin"
+            "role": "admin",
+            "group": "Yönetim Kadrosu"
         },
         "mehmet.alasar": {
-            "password": "MHMT3434",
+            "password": "malasar34.",
             "name": "Mehmet ALAŞAR",
-            "role": "viewer"
+            "role": "viewer",
+            "group": "Yönetim Kadrosu"
+        },
+        "dilber.alasar": {
+            "password": "dalasar34.",
+            "name": "Dilber ALAŞAR",
+            "role": "viewer",
+            "group": "Yönetim Kadrosu"
+        },
+        "hakan.alasar": {
+            "password": "halasar34.",
+            "name": "Hakan ALAŞAR",
+            "role": "viewer",
+            "group": "Yönetim Kadrosu"
+        },
+        "uretim": {
+            "password": "uretim34.",
+            "name": "Üretim Birimi",
+            "role": "viewer",
+            "group": "Kullanıcı"
+        },
+        "muhasebe": {
+            "password": "mhalasar34.",
+            "name": "Muhasebe Birimi",
+            "role": "viewer",
+            "group": "Kullanıcı"
+        },
+        "turgay.yigit": {
+            "password": "talasar34.",
+            "name": "Turgay YİĞİT",
+            "role": "viewer",
+            "group": "Kullanıcı"
         }
     }
 
@@ -219,7 +251,7 @@ def generate_customer_report(dataframe, filtered_customer, filtered_donem, selec
     """
     return html_content
 
-# --- LOGIN EKRANI ---
+# --- LOGIN EKRANI (SEÇMELİ KULLANICI ADI) ---
 if not st.session_state["logged_in"]:
     st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
     st.markdown("---")
@@ -228,29 +260,31 @@ if not st.session_state["logged_in"]:
     with col_b:
         st.subheader("🔒 Kullanıcı Girişi")
         with st.form("login_form"):
-            username_input = st.text_input("Kullanıcı Adı").strip().lower()
+            user_keys = list(st.session_state["users"].keys())
+            secilen_kullanici = st.selectbox("Kullanıcı Adı Seçin", options=user_keys)
             password_input = st.text_input("Parola", type="password").strip()
             login_btn = st.form_submit_button("Giriş Yap", use_container_width=True)
             
             if login_btn:
                 users = st.session_state["users"]
-                if username_input in users and users[username_input]["password"] == password_input:
+                if secilen_kullanici in users and users[secilen_kullanici]["password"] == password_input:
                     st.session_state["logged_in"] = True
                     st.session_state["user_info"] = {
-                        "username": username_input,
-                        "name": users[username_input]["name"],
-                        "role": users[username_input]["role"]
+                        "username": secilen_kullanici,
+                        "name": users[secilen_kullanici]["name"],
+                        "role": users[secilen_kullanici]["role"],
+                        "group": users[secilen_kullanici]["group"]
                     }
-                    st.success(f"Hoş geldiniz, {users[username_input]['name']}!")
+                    st.success(f"Hoş geldiniz, {users[secilen_kullanici]['name']}!")
                     st.rerun()
                 else:
-                    st.error("Hatalı kullanıcı adı veya parola!")
+                    st.error("Hatalı parola!")
     st.stop()
 
 # --- SİDEBAR ---
 user = st.session_state["user_info"]
 st.sidebar.title(f"👤 {user['name']}")
-st.sidebar.caption(f"Rol: {'Yönetici (Tam Yetki)' if user['role'] == 'admin' else 'Görüntüleyici'}")
+st.sidebar.caption(f"Grup: {user['group']} | Rol: {'Yönetici (Admin)' if user['role'] == 'admin' else 'Kullanıcı'}")
 
 with st.sidebar.expander("🔑 Parola Değiştir"):
     with st.form("change_pass_form"):
@@ -806,7 +840,7 @@ with tab4:
 # ---------------- TAB 5: CANLI SORU & SOHBET ----------------
 with tab5:
     st.subheader("💬 Canlı İletişim & Soru-Cevap Paneli")
-    st.markdown("Ömer OCAK ve Mehmet ALAŞAR arasında operasyonel soru, talep ve belge paylaşımlarının yapıldığı canlı iletişim alanıdır.")
+    st.markdown("Tüm ekip üyeleri arasında operasyonel soru, talep ve belge paylaşımlarının yapıldığı canlı iletişim alanıdır.")
     st.markdown("---")
     
     # Sohbet geçmişini göster
