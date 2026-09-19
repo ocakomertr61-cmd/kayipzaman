@@ -127,7 +127,7 @@ def update_google_sheet(df):
         st.error(f"Google Sheets güncelleme hatası: {e}")
         return False
 
-# --- GEÇMİŞ DÖNEM GSPREAD İŞLEMLERİ (AYRI SEKME GEREKTİRMEZ) ---
+# --- GEÇMİŞ DÖNEM GSPREAD İŞLEMLERİ ---
 @st.cache_data(ttl=600, show_spinner="Geçmiş dönem verileri yükleniyor...")
 def load_gecmis_data_cached():
     return _fetch_gecmis_from_sheet()
@@ -154,7 +154,6 @@ def _fetch_gecmis_from_sheet():
                 if df.empty:
                     df = pd.DataFrame(varsayilan_liste)
             except:
-                # Eğer ek sekme yoksa ana tablonun altındaki dosya / session saklama alanını kullan
                 if "gecmis_bellek_yedek" in st.session_state:
                     return st.session_state["gecmis_bellek_yedek"]
                 return varsayilan_liste
@@ -190,7 +189,6 @@ def update_gecmis_google_sheet(liste_veri):
         st.cache_data.clear()
         return True
     except Exception:
-        # Sekme olmasa bile uygulama hafızasında güvenle tutar ve sıfırlanmasını engeller
         return True
 
 # --- KULLANICI / YETKİLENDİRME VERİ TABANI ---
@@ -227,7 +225,6 @@ else:
         if "ID" not in item:
             item["ID"] = idx + 1
 
-# Geçmiş Dönem Verilerini Yükle
 if "gecmis_ozetler" not in st.session_state:
     st.session_state["gecmis_ozetler"] = load_gecmis_data_cached()
 
@@ -789,7 +786,7 @@ with tab6:
             silinecek_odeme_id = st.number_input("Silmek İstediğiniz Ödeme ID Numarası", min_value=1, step=1, key="tekli_odeme_sil_id")
         with col_oid2:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("❌ This ID'ye Sahip Ödemeyi Sil", type="primary", use_container_width=True):
+            if st.button("❌ Bu ID'ye Sahip Ödemeyi Sil", type="primary", use_container_width=True):
                 mevcut_odemeler = st.session_state["odeme_kayitlari"]
                 yeni_odemeler = [item for item in mevcut_odemeler if item.get("ID") != silinecek_odeme_id]
                 if len(yeni_odemeler) < len(mevcut_odemeler):
