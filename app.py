@@ -480,11 +480,11 @@ with tab1:
                 
                 guncel_df = pd.concat([mevcut_df, yeni_kayit], ignore_index=True)
                 if update_google_sheet(guncel_df):
-                    st.success(f"ID #{yeni_id} ({secilen_donem_form} - {musteri_adi}) başarıyla kaydedildi!")
+                    st.success(f"ID #{yeni_id} ({secilen_donem_form} - {musteri_adi}) başarıyla Google Sheets'e kaydedildi!")
                     st.rerun()
 
     elif user["role"] == "accounting":
-        st.subheader("💰 Müşteri Ödemesi / Tahsilat Girişi (Ömer'in Dönem Bazlı Onaylanan Tutarları Üzerinden)")
+        st.subheader("💰 Müşteri Ödemesi / Tahsilat Girişi")
         
         gecmis_liste = st.session_state["gecmis_ozetler"]
         donem_secenekleri = [f"{item['Dönem']} — Onaylanan Tutar: {item['Onaylanan Tutar (TL)']:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") for item in gecmis_liste]
@@ -497,8 +497,6 @@ with tab1:
         secilen_donem_adi = secilen_donem_str.split(" — ")[0]
         secilen_item = next((item for item in gecmis_liste if item["Dönem"] == secilen_donem_adi), None)
         varsayilan_onaylanan_tutar = secilen_item["Onaylanan Tutar (TL)"] if secilen_item else 0.0
-        
-        st.info(f"📋 Seçilen Dönem Onaylanan Tutar: **{varsayilan_onaylanan_tutar:,.2f} TL**".replace(",", "X").replace(".", ",").replace("X", "."))
         
         farkli_tutar_var_mi = st.checkbox("Gelen tutar onaylanan tutardan farklı mı? (Özel tutar girmek için işaretleyin)", key="muh_farkli_tutar_check")
         
@@ -514,13 +512,12 @@ with tab1:
                     muh_tutar = st.number_input("Gerçekleşen / Gelen Özel Tutar *", min_value=0.0, value=float(varsayilan_onaylanan_tutar), step=100.0, format="%.2f", key="muh_ozel_tutar")
                 else:
                     muh_tutar = float(varsayilan_onaylanan_tutar)
-                    st.success(f"Kullanılacak Tutar: {muh_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
                     
                 muh_para_birimi = st.selectbox("Para Birimi", options=["TL (₺)", "USD ($)", "EUR (€)"], key="muh_pb")
                 muh_kur = st.number_input("TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
             
             hesaplanan_tl = muh_tutar if "TL" in muh_para_birimi else muh_tutar * muh_kur
-            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Farklı tutar girildiyse gerekçesi veya banka dekont bilgisi...", key="muh_aciklama_val")
+            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Farklı tutar girildiyse gerekçesi...", key="muh_aciklama_val")
             
             btn_odeme_kaydet = st.form_submit_button("💾 Ödeme / Tahsilat Kaydet", use_container_width=True, type="primary")
             
@@ -542,7 +539,7 @@ with tab1:
                         "Kaydeden": user["name"],
                         "Durum": muh_durum_tipi
                     })
-                    st.success("Ödeme kaydı sisteme başarıyla işlendi ve güncellendi!")
+                    st.success("Ödeme kaydı sisteme başarıyla işlendi!")
                     st.rerun()
     else:
         st.subheader("📊 Kayıt Listesi (Salt Okunur)")
@@ -580,13 +577,13 @@ with tab2:
             
             c_kaydet, c_secili_sil, c_indir = st.columns([1.2, 1.2, 1])
             with c_kaydet:
-                if st.button("🔄 Tablo Değişikliklerini Kaydet", use_container_width=True):
+                if st.button("🔄 Tablo Değişikliklerini Google Sheets'e Kaydet", use_container_width=True):
                     clean_df = edited_df.drop(columns=["Seç"], errors="ignore")
                     if update_google_sheet(clean_df):
-                        st.success("Tablo değişiklikleri kaydedildi!")
+                        st.success("Tablo değişiklikleri başarıyla Google Sheets'e kaydedildi!")
                         st.rerun()
             with c_secili_sil:
-                # İstenen kayıtların tek tıkla seçilip silinmesi (Mükerrer önleme)
+                # İşaretlenenleri anında Google Sheets'ten sil ve kaydet
                 if st.button("🗑️ İşaretlenen Mükerrer / Seçili Kayıtları Sil", use_container_width=True, type="primary"):
                     secilenler = edited_df[edited_df["Seç"] == True]
                     if secilenler.empty:
@@ -594,7 +591,7 @@ with tab2:
                     else:
                         kalan_df = edited_df[edited_df["Seç"] == False].drop(columns=["Seç"], errors="ignore")
                         if update_google_sheet(kalan_df):
-                            st.success(f"Seçilen {len(secilenler)} adet kayıt başarıyla silindi!")
+                            st.success(f"Seçilen {len(secilenler)} adet kayıt Google Sheets'ten kalıcı olarak silindi!")
                             st.rerun()
             with c_indir:
                 download_df = df.drop(columns=["Seç"], errors="ignore")
@@ -613,7 +610,7 @@ with tab2:
                     if 'ID' in mevcut_df_id.columns and silinecek_id_input in mevcut_df_id['ID'].values:
                         yeni_temiz_df = mevcut_df_id[mevcut_df_id['ID'] != silinecek_id_input]
                         if update_google_sheet(yeni_temiz_df):
-                            st.success(f"ID #{silinecek_id_input} numaralı kayıt başarıyla silindi!")
+                            st.success(f"ID #{silinecek_id_input} numaralı kayıt başarıyla silindi ve Sheets güncellendi!")
                             st.rerun()
                     else:
                         st.error(f"Sistemde #{silinecek_id_input} ID numarasına ait bir kayıt bulunamadı.")
@@ -650,7 +647,7 @@ with tab3:
     ft3.metric("Geçmiş Toplam Kesinti Tutarı", f"{m_kesinti_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
     
     st.markdown("---")
-    st.markdown("### 💰 Finansal Ödeme Analizi (Geçmiş Devirler Dahil Otomatik Güncellenen)")
+    st.markdown("### 💰 Finansal Ödeme Analizi")
     
     if not odeme_analiz_df.empty:
         if "Durum" not in odeme_analiz_df.columns:
@@ -702,8 +699,7 @@ with tab3:
 
 # ---------------- TAB 4: GEÇMİŞ DÖNEM ----------------
 with tab4:
-    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri & Saatlik Ücret ile Tutar Hesaplama")
-    
+    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri")
     gecmis_temp_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
     
     gecmis_df_editable = st.data_editor(
@@ -735,7 +731,7 @@ with tab4:
             updated_records.append(row.to_dict())
             
         st.session_state["gecmis_ozetler"] = updated_records
-        st.success("Geçmiş dönem saatleri saatlik ücret ile çarpıldı ve tutarlar güncellenip kaydedildi!")
+        st.success("Geçmiş dönem verileri güncellendi!")
         st.rerun()
 
 # ---------------- TAB 5: SOHBET ----------------
@@ -768,15 +764,14 @@ with tab5:
             st.session_state["chat_messages"] = []
             st.rerun()
 
-# ---------------- TAB 6: ÖDEMELER (YETKİLİ: ÖMER & MUHASEBE) ----------------
+# ---------------- TAB 6: ÖDEMELER ----------------
 with tab6:
-    st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu (Geçmiş Dönemler Dahil)")
-    
+    st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu")
     yetkili_mi = (user["role"] == "admin" or user["role"] == "accounting")
     
     odeme_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
     if odeme_df.empty:
-        st.info("Henüz ödeme kaydı bulunuyor.")
+        st.info("Henüz ödeme kaydı bulunmuyor.")
     else:
         st.dataframe(odeme_df, use_container_width=True)
         
@@ -788,4 +783,4 @@ with tab6:
             st.success("Tüm ödeme kayıtları temizlendi!")
             st.rerun()
     else:
-        st.info("ℹ️ Ödeme kayıtlarını silme ve yönetme yetkisi yalnızca Ömer OCAK ve Muhasebe Birimi'ne özeldir.")
+        st.info("ℹ️ Ödeme kayıtlarını silme ve yönetme yetkisi yalnızca yetkili kullanıcılara özeldir.")
