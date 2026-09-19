@@ -538,7 +538,7 @@ with tab2:
                     "Kayıp Zaman (Saat)": st.column_config.NumberColumn("Kayıp Zaman (Saat)", format="%.2f"),
                     "Saatlik İşçilik Ücreti (TL)": st.column_config.NumberColumn("Saatlik Ücret (TL)", format="%.2f"),
                     "Toplam Tutar (TL)": st.column_config.NumberColumn("Toplam Tutar (TL)", format="%.2f"),
-                    "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
+                    "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"], required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
                 },
                 use_container_width=True,
