@@ -12,14 +12,19 @@ st.set_page_config(page_title="Müşteri Kayıp Zaman Takip Sistemi", layout="wi
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1UsGlWxzRmiriAufzk14D0oiS3CyHMAjENyFhIbw9VG4/edit?pli=1&gid=0#gid=0"
 
 SUTUNLAR = [
-    "ID", "Tarih", "Dönem (Ay/Yıl)", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
+    "ID", "Tarih", "Kayıp Zaman Türü", "Dönem (Ay/Yıl)", "Müşteri Adı", "Sorumlu Mühendis", "İrsaliye No", 
     "Referans No", "Seri No", "Duruş Nedeni", "İşlem Açıklaması", 
     "Gelen Parti Miktarı", "Hata Oranı (%)", "P/H", 
     "Hesaplanan Zaman (Saat)", "Kayıp Zaman (Saat)", "Son Durum", 
-    "Etiket Görseli Linki", "Hata Görseli Linki", "Onay Belgesi Linki"
+    "İrsaliye Görseli Linki", "Etiket Görseli Linki", "Hata Görseli Linki", "Onay Belgesi Linki"
 ]
 
 DURUM_OPSIYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
+KAYIP_ZAMAN_TURU_OPSIYONLARI = [
+    "Gelen Ek İşçilik Talepleri / GKK Yakalamaları / Ücretli Rework",
+    "Hat Duruşları Kaynaklı"
+]
+
 DURUS_NEDENLERI = [
     "Rework / Yeniden İşleme", 
     "Malzeme Eksikliği / Bekleme", 
@@ -137,7 +142,7 @@ if "logged_in" not in st.session_state:
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
 
-# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ (İstediğiniz Format) ---
+# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ ---
 if "gecmis_ozetler" not in st.session_state:
     st.session_state["gecmis_ozetler"] = [
         {"Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Süreç başlangıcı / Veri bekleniyor"},
@@ -282,6 +287,15 @@ if user["role"] == "admin":
     with tab1:
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
         
+        # Formun başında iki ana bölüm seçimi
+        kayip_zaman_turu = st.radio(
+            "📌 Kayıp Zaman / İşlem Kategorisi Seçin *",
+            options=KAYIP_ZAMAN_TURU_OPSIYONLARI,
+            horizontal=True,
+            key="f_kayip_zaman_turu"
+        )
+        st.markdown("---")
+        
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             secilen_donem_form = st.selectbox("Dönem Seçin (Ay / Yıl) *", options=DONEM_LISTESI, index=8, key="f_donem")
@@ -327,7 +341,9 @@ if user["role"] == "admin":
 
         islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...", key="f_aciklama")
         
-        c_link1, c_link2, c_link3 = st.columns(3)
+        c_link0, c_link1, c_link2, c_link3 = st.columns(4)
+        with c_link0:
+            irsaliye_gorseli_link = st.text_input("📦 İrsaliye Görseli Linki", key="f_irsaliye_link")
         with c_link1:
             etiket_gorseli_link = st.text_input("🏷️ Etiket Görseli Linki", key="f_etiket")
         with c_link2:
@@ -351,6 +367,7 @@ if user["role"] == "admin":
                 yeni_kayit = pd.DataFrame([{
                     "ID": yeni_id,
                     "Tarih": bugun,
+                    "Kayıp Zaman Türü": kayip_zaman_turu,
                     "Dönem (Ay/Yıl)": secilen_donem_form,
                     "Müşteri Adı": musteri_adi,
                     "Sorumlu Mühendis": sorumlu_muhendis,
@@ -365,6 +382,7 @@ if user["role"] == "admin":
                     "Hesaplanan Zaman (Saat)": round(float(hesaplanan_zaman), 2),
                     "Kayıp Zaman (Saat)": round(float(kayip_zaman_saat), 2),
                     "Son Durum": son_durum,
+                    "İrsaliye Görseli Linki": irsaliye_gorseli_link,
                     "Etiket Görseli Linki": etiket_gorseli_link,
                     "Hata Görseli Linki": hata_gorseli_link,
                     "Onay Belgesi Linki": onay_belgesi_link
@@ -393,12 +411,14 @@ with tab2:
                 column_config={
                     "Seç": st.column_config.CheckboxColumn("Seç", default=False),
                     "ID": st.column_config.NumberColumn("ID", disabled=True),
+                    "Kayıp Zaman Türü": st.column_config.SelectboxColumn("Kayıp Zaman Türü", options=KAYIP_ZAMAN_TURU_OPSIYONLARI, required=True),
                     "Dönem (Ay/Yıl)": st.column_config.SelectboxColumn("Dönem (Ay/Yıl)", options=DONEM_LISTESI, required=True),
                     "Hata Oranı (%)": st.column_config.NumberColumn("Hata Oranı (%)", min_value=0.0, max_value=100.0, format="%.2f"),
                     "Hesaplanan Zaman (Saat)": st.column_config.NumberColumn("Hesaplanan Zaman (Saat)", format="%.2f"),
                     "Kayıp Zaman (Saat)": st.column_config.NumberColumn("Kayıp Zaman (Saat)", format="%.2f"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
+                    "İrsaliye Görseli Linki": st.column_config.LinkColumn("İrsaliye Görseli", display_text="🔗 İrsaliye Linki"),
                     "Etiket Görseli Linki": st.column_config.LinkColumn("Etiket Görseli", display_text="🔗 Etiket Linki"),
                     "Hata Görseli Linki": st.column_config.LinkColumn("Hata Görseli", display_text="🔗 Hata Linki"),
                     "Onay Belgesi Linki": st.column_config.LinkColumn("Onay Belgesi", display_text="🔗 Onay Linki"),
@@ -452,11 +472,17 @@ with tab2:
                     satir = df[df['ID'] == secilen_id].iloc[0]
                     
                     st.markdown(f"**📂 ID #{secilen_id} &mdash; {satir['Müşteri Adı']} ({satir['Referans No']}) Doküman Ön İzlemesi:**")
-                    l_et = str(satir.get("Etiket Görseli Linki", ""))
+                    l_irs = str(satir.get("İrsaliye Görseli Linki", ""))
+                    l_et  = str(satir.get("Etiket Görseli Linki", ""))
                     l_hat = str(satir.get("Hata Görseli Linki", ""))
                     l_ony = str(satir.get("Onay Belgesi Linki", ""))
                     
-                    col_p1, col_p2, col_p3 = st.columns(3)
+                    col_p0, col_p1, col_p2, col_p3 = st.columns(4)
+                    with col_p0:
+                        if l_irs and l_irs.startswith("http"):
+                            st.markdown(f"[📦 İrsaliye Görselini Aç]({l_irs})", unsafe_allow_html=True)
+                        else:
+                            st.caption("📦 İrsaliye Linki Yok")
                     with col_p1:
                         if l_et and l_et.startswith("http"):
                             st.markdown(f"[🏷️ Etiket Görselini Aç]({l_et})", unsafe_allow_html=True)
@@ -475,6 +501,10 @@ with tab2:
                     
                     with st.expander(f"✏️ ID #{secilen_id} Detaylarını Düzenle / Sil", expanded=False):
                         with st.form(f"form_guncelle_{secilen_id}"):
+                            mevcut_tur = str(satir.get("Kayıp Zaman Türü", ""))
+                            idx_tur = KAYIP_ZAMAN_TURU_OPSIYONLARI.index(mevcut_tur) if mevcut_tur in KAYIP_ZAMAN_TURU_OPSIYONLARI else 0
+                            g_tur = st.selectbox("Kayıp Zaman Türü", KAYIP_ZAMAN_TURU_OPSIYONLARI, index=idx_tur)
+                            
                             c1, c2, c3 = st.columns(3)
                             with c1:
                                 mevcut_satir_donem = str(satir["Dönem (Ay/Yıl)"]).strip()
@@ -502,6 +532,7 @@ with tab2:
                             
                             g_aciklama = st.text_area("İşlem Açıklaması", value=str(satir["İşlem Açıklaması"] if pd.notna(satir["İşlem Açıklaması"]) else ""))
                             
+                            g_irs_link = st.text_input("İrsaliye Görseli Linki", value=l_irs)
                             g_etiket = st.text_input("Etiket Görseli Linki", value=l_et)
                             g_gorsel = st.text_input("Hata Görseli Linki", value=l_hat)
                             g_onay = st.text_input("Onay Belgesi Linki", value=l_ony)
@@ -514,6 +545,7 @@ with tab2:
                                 
                             if btn_update:
                                 clean_df = df.drop(columns=["Seç"], errors="ignore")
+                                clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman Türü"] = g_tur
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Dönem (Ay/Yıl)"] = g_donem
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Müşteri Adı"] = g_musteri
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Sorumlu Mühendis"] = g_muhendis
@@ -528,6 +560,7 @@ with tab2:
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = round(float(g_kayip), 2)
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Son Durum"] = g_durum
                                 clean_df.loc[clean_df['ID'] == secilen_id, "İşlem Açıklaması"] = g_aciklama
+                                clean_df.loc[clean_df['ID'] == secilen_id, "İrsaliye Görseli Linki"] = g_irs_link
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Etiket Görseli Linki"] = g_etiket
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Hata Görseli Linki"] = g_gorsel
                                 clean_df.loc[clean_df['ID'] == secilen_id, "Onay Belgesi Linki"] = g_onay
@@ -560,10 +593,9 @@ with tab3:
     st.subheader("Analiz Panosu & Dönemsel Müşteri Raporu")
     df = load_data()
     
-    # Geçmiş dönem özet DataFrame'i
     manuel_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
     
-    # --- TÜM ZAMANLAR KÜMÜLATİF HESAPLAMALAR (Aktif Sistem + Manuel Geçmiş) ---
+    # --- TÜM ZAMANLAR KÜMÜLATİF HESAPLAMALAR ---
     aktif_talep_toplam = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
     aktif_onay_toplam = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
     
@@ -618,7 +650,7 @@ with tab3:
         with col_r1:
             rapor_musteri_secim = st.selectbox("Rapor için Müşteri:", options=analiz_musteri_listesi, key="rapor_musteri")
         with col_r2:
-            varsayilan_sutunlar = [c for c in ["Tarih", "Dönem (Ay/Yıl)", "Müşteri Adı", "Referans No", "Duruş Nedeni", "Hesaplanan Zaman (Saat)", "Son Durum"] if c in df.columns]
+            varsayilan_sutunlar = [c for c in ["Tarih", "Kayıp Zaman Türü", "Dönem (Ay/Yıl)", "Müşteri Adı", "Referans No", "Duruş Nedeni", "Hesaplanan Zaman (Saat)", "Son Durum"] if c in df.columns]
             secilen_sutunlar = st.multiselect(
                 "Raporda Görünmesini İstediğiniz Sütunlar:",
                 options=df.columns.tolist(),
