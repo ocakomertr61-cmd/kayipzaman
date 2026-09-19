@@ -392,7 +392,7 @@ with tab1:
             toplam_tutar_hesaplanan = round(kayip_zaman_saat * saatlik_ucret, 2)
             st.info(f"💰 **Hesaplanan Toplam Tutar: {toplam_tutar_hesaplanan:,.2f} TL**".replace(",", "X").replace(".", ",").replace("X", "."))
             
-            son_durum = st.selectbox("Son Durum *", DURUM_OPSIYONLARI, key="f_durum")
+            son_durum = st.selectbox("Son Durum *", ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"], key="f_durum")
 
         islem_aciklamasi = st.text_area("İşlem Açıklaması", placeholder="Yapılan işlem, duruş gerekçesi ve detaylar...", key="f_aciklama")
         
