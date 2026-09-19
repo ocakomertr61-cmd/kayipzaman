@@ -418,7 +418,6 @@ with tab1:
             st.markdown("---")
             kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=26.92, step=0.1, format="%.2f", key="f_kayip")
             
-            # YENİ EKLENEN SAATLİK ÜCRET KUTUCUĞU
             saatlik_ucret = st.number_input("💵 Saatlik İşçilik Ücreti (TL) *", min_value=0.0, value=500.0, step=10.0, format="%.2f", key="f_saatlik_ucret")
             toplam_tutar_hesaplanan = round(kayip_zaman_saat * saatlik_ucret, 2)
             st.info(f"💰 **Hesaplanan Toplam Tutar: {toplam_tutar_hesaplanan:,.2f} TL**".replace(",", "X").replace(".", ",").replace("X", "."))
@@ -596,7 +595,6 @@ with tab3:
     tz1.metric("Toplam Talep Edilen Kayıp Zaman", f"{aktif_talep + m_talep:.2f} Saat")
     tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
-    # MANUEL FİNANSAL ÖZET METRİKLERİ
     st.markdown("### 💼 Geçmiş Dönem Finansal & Kesinti Kümülatif Özeti")
     m_talep_tutar = pd.to_numeric(manuel_df['Talep Edilen Tutar (TL)'], errors='coerce').sum()
     m_onay_tutar = pd.to_numeric(manuel_df['Onaylanan Tutar (TL)'], errors='coerce').sum()
@@ -682,7 +680,6 @@ with tab4:
     )
     
     if st.button("🔄 Saatleri Saatlik Ücretle Çarp & Kaydet", use_container_width=True, type="primary"):
-        # Otomatik olarak saatleri ve saatlik ücreti çarpıp tutarları güncelleyelim
         updated_records = []
         for index, row in gecmis_df_editable.iterrows():
             t_saat = float(row.get("Talep Edilen Kayıp Zaman (Saat)", 0.0))
@@ -727,16 +724,25 @@ with tab5:
             st.session_state["chat_messages"] = []
             st.rerun()
 
-# ---------------- TAB 6: ÖDEMELER ----------------
+# ---------------- TAB 6: ÖDEMELER (YETKİLİ: ÖMER & MUHASEBE) ----------------
 with tab6:
     st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu (Geçmiş Dönemler Dahil)")
+    
+    # Yalnızca Admin (Ömer OCAK) ve Muhasebe (accounting) rollerine silme/temizleme izni verilir
+    yetkili_mi = (user["role"] == "admin" or user["role"] == "accounting")
+    
     odeme_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
     if odeme_df.empty:
         st.info("Henüz ödeme kaydı bulunmuyor.")
     else:
         st.dataframe(odeme_df, use_container_width=True)
         
-    if user["role"] == "admin":
-        if st.button("🗑️ Ödemeleri Temizle", type="primary"):
+    if yetkili_mi:
+        st.markdown("---")
+        st.markdown("### ⚙️ Ödeme Kayıtları Yönetimi")
+        if st.button("🗑️ Tüm Ödeme Kayıtlarını Temizle", type="primary"):
             st.session_state["odeme_kayitlari"] = []
+            st.success("Tüm ödeme kayıtları temizlendi!")
             st.rerun()
+    else:
+        st.info("ℹ️ Ödeme kayıtlarını silme ve yönetme yetkisi yalnızca Ömer OCAK ve Muhasebe Birimi'ne özeldir.")
