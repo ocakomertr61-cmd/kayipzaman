@@ -193,7 +193,8 @@ if "odeme_kayitlari" not in st.session_state:
             "TL Karşılığı": 155252.00,
             "Gösterim": "155.252,00 TL (₺)",
             "Açıklama": "Eylül ayı fatura tahsilatı alındı.",
-            "Kaydeden": "Muhasebe Birimi"
+            "Kaydeden": "Muhasebe Birimi",
+            "Durum": "Gelen Ödeme"
         }
     ]
 
@@ -209,64 +210,6 @@ if "gecmis_ozetler" not in st.session_state:
         {"Dönem": "Ağustos 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Açıklama": "Veri bekleniyor"}
     ]
 
-# --- RAPOR OLUŞTURUCU HTML ---
-def generate_customer_report(dataframe, filtered_customer, filtered_donem, selected_columns, manuel_ozet_df=None):
-    filtered_df = dataframe[selected_columns] if selected_columns else dataframe
-    
-    toplam_kayit = len(dataframe)
-    toplam_hesaplanan = pd.to_numeric(dataframe['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
-    onaylanan = pd.to_numeric(dataframe[dataframe['Son Durum'] == "Onay Geldi"]['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
-    
-    manuel_html = ""
-    if manuel_ozet_df is not None and not manuel_ozet_df.empty:
-        manuel_html = f"""
-        <h3 style="color: #1f77b4; margin-top: 30px;">Geçmiş Dönem Manuel Özet Kayıtları (Şubat 2026 - Ağustos 2026)</h3>
-        {manuel_ozet_df.to_html(index=False, escape=False)}
-        """
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="tr">
-    <head>
-        <meta charset="utf-8">
-        <title>Müşteri Kayıp Zaman & Duruş Raporu</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 30px; color: #222; }}
-            .header {{ text-align: center; border-bottom: 2px solid #1f77b4; padding-bottom: 10px; margin-bottom: 20px; }}
-            .header h2 {{ color: #1f77b4; margin: 0; }}
-            .info {{ background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #dee2e6; }}
-            .info p {{ margin: 5px 0; font-size: 14px; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }}
-            th, td {{ border: 1px solid #ced4da; padding: 8px; text-align: left; }}
-            th {{ background-color: #1f77b4; color: white; }}
-            tr:nth-child(even) {{ background-color: #f8f9fa; }}
-            .footer {{ margin-top: 30px; text-align: center; font-size: 12px; color: #6c757d; }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h2>ALAŞAR GRUP - MÜŞTERİ HESAPLANAN ZAMAN & DURUŞ RAPORU</h2>
-        </div>
-        <div class="info">
-            <p><strong>Rapor Tarihi:</strong> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
-            <p><strong>Rapor Kapsamı / Dönem:</strong> {filtered_donem}</p>
-            <p><strong>Raporlanan Müşteri / Kriter:</strong> {filtered_customer}</p>
-            <p><strong>Sistem İçi Kayıt Adeti:</strong> {toplam_kayit} Adet &nbsp;|&nbsp; <strong>Toplam Hesaplanan Zaman:</strong> {toplam_hesaplanan:.2f} Saat &nbsp;|&nbsp; <strong>Onaylanan Süre:</strong> {onaylanan:.2f} Saat</p>
-        </div>
-        
-        <h3 style="color: #1f77b4;">Aktif Sistem Verileri</h3>
-        {filtered_df.to_html(index=False, escape=False)}
-        
-        {manuel_html}
-        
-        <div class="footer">
-            <p>Bu rapor Müşteri Kayıp Zaman & Fatura Takip Sistemi üzerinden otomatik olarak üretilmiştir.</p>
-        </div>
-    </body>
-    </html>
-    """
-    return html_content
-
 def format_para(tutar, birim):
     try:
         tutar_val = float(tutar)
@@ -275,7 +218,7 @@ def format_para(tutar, birim):
     except:
         return f"{tutar} {birim}"
 
-# --- LOGIN EKRANI (SEÇMELİ KULLANICI ADI) ---
+# --- LOGIN EKRANI ---
 if not st.session_state["logged_in"]:
     st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
     st.markdown("---")
@@ -347,7 +290,7 @@ if user["role"] == "admin":
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "➕ Yeni Kayıp Zaman Kaydı Ekle", 
         "📊 Kayıt Yönetimi (Düzenle & Sil)", 
-        "📈 Analiz & Rapor", 
+        "📈 Analiz, Grafik & Ödemeler", 
         "📁 Geçmiş Dönem Manuel Veriler", 
         "💬 Canlı Soru & Sohbet",
         "💰 Gelen Ödemeler & Tahsilatlar"
@@ -356,7 +299,7 @@ elif user["role"] == "accounting":
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "💰 Ödeme Bilgisi Gir",
         "📊 Kayıt Listesi", 
-        "📈 Analiz & Rapor", 
+        "📈 Analiz, Grafik & Ödemeler", 
         "📁 Geçmiş Dönem Manuel Veriler", 
         "💬 Canlı Soru & Sohbet",
         "💰 Gelen Ödemeler & Tahsilatlar"
@@ -364,7 +307,7 @@ elif user["role"] == "accounting":
 else:
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 Kayıt Listesi (Salt Okunur)", 
-        "📈 Analiz & Rapor", 
+        "📈 Analiz, Grafik & Ödemeler", 
         "📁 Geçmiş Dönem Manuel Veriler", 
         "💬 Canlı Soru & Sohbet",
         "💰 Gelen Ödemeler & Tahsilatlar",
@@ -445,11 +388,9 @@ with tab1:
                 st.error("Lütfen Müşteri Adı ve Referans No alanlarını doldurunuz!")
             else:
                 mevcut_df = load_data()
-                
                 valid_ids = mevcut_df['ID'].dropna()
                 valid_ids = valid_ids[pd.to_numeric(valid_ids, errors='coerce').notnull()]
                 yeni_id = int(valid_ids.max()) + 1 if not valid_ids.empty else 1
-                
                 bugun = datetime.now().strftime("%Y-%m-%d %H:%M")
                 
                 yeni_kayit = pd.DataFrame([{
@@ -483,8 +424,6 @@ with tab1:
 
     elif user["role"] == "accounting":
         st.subheader("💰 Yeni Müşteri Ödemesi / Tahsilat Girişi (Döviz & Kur Hesaplamalı)")
-        st.markdown("Tutarı doğru formatta girip para birimini seçerek güncel kur üzerinden TL ve döviz karşılıklarını otomatik hesaplayabilirsiniz.")
-        
         with st.form("muhasebe_odeme_form", clear_on_submit=True):
             col_m1, col_m2, col_m3 = st.columns(3)
             with col_m1:
@@ -497,12 +436,11 @@ with tab1:
                 muh_kur = st.number_input("Güncel TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
                 muh_tarih = st.text_input("Ödeme Tarihi", value=datetime.now().strftime("%d.%m.%Y"), key="muh_tarih_val")
                 
+            muh_durum_tipi = st.selectbox("Ödeme Durumu", options=["Gelen Ödeme", "Bekleyen Ödeme"], key="muh_durum_tipi")
             hesaplanan_tl = muh_tutar if "TL" in muh_para_birimi else muh_tutar * muh_kur
-            st.info(f"🧮 **Otomatik Hesaplanan TL Karşılığı:** {hesaplanan_tl:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
-
-            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Fatura no, banka dekontu veya ek açıklamalar...", key="muh_aciklama_val")
             
-            btn_odeme_kaydet = st.form_submit_button("💾 Ödeme Bilgisini Yönetime İlet", use_container_width=True, type="primary")
+            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Fatura no, banka dekontu...", key="muh_aciklama_val")
+            btn_odeme_kaydet = st.form_submit_button("💾 Ödeme Bilgisini Kaydet", use_container_width=True, type="primary")
             
             if btn_odeme_kaydet:
                 if not muh_musteri.strip() or muh_tutar <= 0:
@@ -518,10 +456,11 @@ with tab1:
                         "Kur": muh_kur,
                         "TL Karşılığı": hesaplanan_tl,
                         "Gösterim": gosterim_str,
-                        "Açıklama": muh_aciklama.strip() if muh_aciklama.strip() else "Açıklama girilmedi.",
-                        "Kaydeden": user["name"]
+                        "Açıklama": muh_aciklama.strip() if muh_aciklama.strip() else "Açıklama yok.",
+                        "Kaydeden": user["name"],
+                        "Durum": muh_durum_tipi
                     })
-                    st.success("Ödeme bilgisi başarıyla işlendi ve yönetim kadrosuna iletildi!")
+                    st.success("Ödeme kaydı başarıyla eklendi!")
                     st.rerun()
     else:
         st.subheader("📊 Kayıt Listesi (Salt Okunur)")
@@ -550,10 +489,6 @@ with tab2:
                     "Kayıp Zaman (Saat)": st.column_config.NumberColumn("Kayıp Zaman (Saat)", format="%.2f"),
                     "Son Durum": st.column_config.SelectboxColumn("Son Durum", options=DURUM_OPSIYONLARI, required=True),
                     "Duruş Nedeni": st.column_config.SelectboxColumn("Duruş Nedeni", options=DURUS_NEDENLERI, required=True),
-                    "İrsaliye Görseli Linki": st.column_config.LinkColumn("İrsaliye Görseli", display_text="🔗 İrsaliye Linki"),
-                    "Etiket Görseli Linki": st.column_config.LinkColumn("Etiket Görseli", display_text="🔗 Etiket Linki"),
-                    "Hata Görseli Linki": st.column_config.LinkColumn("Hata Görseli", display_text="🔗 Hata Linki"),
-                    "Onay Belgesi Linki": st.column_config.LinkColumn("Onay Belgesi", display_text="🔗 Onay Linki"),
                 },
                 use_container_width=True,
                 key="editor"
@@ -580,49 +515,16 @@ with tab2:
                 download_df = df.drop(columns=["Seç"], errors="ignore")
                 csv_data = download_df.to_csv(index=False).encode('utf-8-sig')
                 st.download_button("📥 CSV İndir", data=csv_data, file_name="kayip_zaman.csv", mime="text/csv", use_container_width=True)
-
-            st.markdown("---")
-            st.subheader("🎯 Bireysel Satır Düzenleme & Doküman Ön İzleme")
-            id_listesi = df['ID'].dropna().astype(int).unique().tolist()
-            secilen_id = st.selectbox("ID Numarası Seçin:", options=id_listesi) if id_listesi else None
-            
-            if secilen_id:
-                satir = df[df['ID'] == secilen_id].iloc[0]
-                l_irs = str(satir.get("İrsaliye Görseli Linki", ""))
-                l_et  = str(satir.get("Etiket Görseli Linki", ""))
-                l_hat = str(satir.get("Hata Görseli Linki", ""))
-                l_ony = str(satir.get("Onay Belgesi Linki", ""))
-                
-                col_p0, col_p1, col_p2, col_p3 = st.columns(4)
-                with col_p0:
-                    if l_irs.startswith("http"): st.markdown(f"[📦 İrsaliye]({l_irs})")
-                with col_p1:
-                    if l_et.startswith("http"): st.markdown(f"[🏷️ Etiket]({l_et})")
-                with col_p2:
-                    if l_hat.startswith("http"): st.markdown(f"[📷 Hata]({l_hat})")
-                with col_p3:
-                    if l_ony.startswith("http"): st.markdown(f"[📄 Onay]({l_ony})")
-                
-                with st.expander(f"✏️ ID #{secilen_id} Detaylarını Düzenle"):
-                    with st.form(f"form_guncelle_{secilen_id}"):
-                        g_musteri = st.text_input("Müşteri Adı", value=str(satir["Müşteri Adı"]))
-                        g_kayip = st.number_input("Kayıp Zaman", value=float(satir["Kayıp Zaman (Saat)"]))
-                        if st.form_submit_button("Güncelle"):
-                            clean_df = df.drop(columns=["Seç"], errors="ignore")
-                            clean_df.loc[clean_df['ID'] == secilen_id, "Müşteri Adı"] = g_musteri
-                            clean_df.loc[clean_df['ID'] == secilen_id, "Kayıp Zaman (Saat)"] = g_kayip
-                            if update_google_sheet(clean_df):
-                                st.success("Güncellendi!")
-                                st.rerun()
     else:
         st.subheader("📊 Kayıt Listesi")
         st.dataframe(df, use_container_width=True)
 
-# ---------------- TAB 3: ANALİZ & RAPOR ----------------
+# ---------------- TAB 3: ANALİZ, GRAFİK & ÖDEMELER ----------------
 with tab3:
-    st.subheader("Analiz Panosu & Dönemsel Müşteri Raporu")
+    st.subheader("📈 Gelişmiş Analitik Grafikler & Ödeme Durumları")
     df = load_data()
     manuel_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
+    odeme_analiz_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
     
     aktif_talep = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
     aktif_onay = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty else 0.0
@@ -630,31 +532,62 @@ with tab3:
     m_talep = pd.to_numeric(manuel_df['Talep Edilen Kayıp Zaman (Saat)'], errors='coerce').sum()
     m_onay = pd.to_numeric(manuel_df['Onaylanan Kayıp Zaman (Saat)'], errors='coerce').sum()
     
-    st.markdown("### 🌐 Tüm Zamanlar Genel Kümülatif Özet (Geçmiş + Aktif Sistem)")
+    st.markdown("### 🌐 Kümülatif Zaman Özeti")
     tz1, tz2 = st.columns(2)
     tz1.metric("Toplam Talep Edilen Kayıp Zaman", f"{aktif_talep + m_talep:.2f} Saat")
     tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
     st.markdown("---")
+    st.markdown("### 💰 Finansal Ödeme Analizi (Bekleyen / Gelen / Tüm Ödemeler)")
+    
+    if not odeme_analiz_df.empty:
+        # Durum filtresi kontrolü için güvenli kolon kontrolü
+        if "Durum" not in odeme_analiz_df.columns:
+            odeme_analiz_df["Durum"] = "Gelen Ödeme"
+            
+        gelen_toplam = odeme_analiz_df[odeme_analiz_df["Durum"] == "Gelen Ödeme"]["TL Karşılığı"].sum()
+        bekleyen_toplam = odeme_analiz_df[odeme_analiz_df["Durum"] == "Bekleyen Ödeme"]["TL Karşılığı"].sum()
+        tum_toplam = odeme_analiz_df["TL Karşılığı"].sum()
+        
+        od_col1, od_col2, od_col3 = st.columns(3)
+        od_col1.metric("📥 Gelen Ödemeler Toplamı", f"{gelen_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+        od_col2.metric("⏳ Bekleyen Ödemeler Toplamı", f"{bekleyen_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+        od_col3.metric("📊 Tüm Ödemeler Kümülatif", f"{tum_toplam:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+        
+        odeme_filtre_secim = st.radio(
+            "Görüntülenecek Ödeme Kategorisi:",
+            ["Tüm Ödemeler", "Gelen Ödemeler", "Bekleyen Ödemeler"],
+            horizontal=True
+        )
+        
+        if odeme_filtre_secim == "Gelen Ödemeler":
+            gosterilecek_odeme_df = odeme_analiz_df[odeme_analiz_df["Durum"] == "Gelen Ödeme"]
+        elif odeme_filtre_secim == "Bekleyen Ödemeler":
+            gosterilecek_odeme_df = odeme_analiz_df[odeme_analiz_df["Durum"] == "Bekleyen Ödeme"]
+        else:
+            gosterilecek_odeme_df = odeme_analiz_df
+            
+        st.dataframe(gosterilecek_odeme_df, use_container_width=True)
+    else:
+        st.info("Kayıtlı finansal ödeme verisi bulunmuyor.")
+
+    st.markdown("---")
+    st.markdown("### 📊 Görsel Dağılım Grafikleri")
     if not df.empty and not df.dropna(how='all').empty:
-        mevcut_donemler = sorted(df['Dönem (Ay/Yıl)'].dropna().unique().tolist())
-        secilen_analiz_donemi = st.selectbox("Dönem Seçin:", options=mevcut_donemler if mevcut_donemler else ["Eylül 2026"])
-        filtrelenmis_df = df[df['Dönem (Ay/Yıl)'] == secilen_analiz_donemi]
-        
-        toplam_sure = pd.to_numeric(filtrelenmis_df['Hesaplanan Zaman (Saat)'], errors='coerce').sum()
-        st.metric("Seçilen Dönem Toplam Hesaplanan Zaman", f"{toplam_sure:.2f} Saat")
-        
-        st.markdown("### 📊 Görsel Dağılımlar")
-        if not filtrelenmis_df.empty:
-            cg1, cg2 = st.columns(2)
-            with cg1:
-                g_mus = filtrelenmis_df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum().reset_index()
-                fig_m = px.bar(g_mus, x='Müşteri Adı', y='Hesaplanan Zaman (Saat)', title="Müşteri Bazlı Dağılım")
-                st.plotly_chart(fig_m, use_container_width=True)
-            with cg2:
-                g_ned = filtrelenmis_df.groupby('Duruş Nedeni')['Hesaplanan Zaman (Saat)'].sum().reset_index()
-                fig_n = px.bar(g_ned, x='Duruş Nedeni', y='Hesaplanan Zaman (Saat)', title="Duruş Nedenleri")
-                st.plotly_chart(fig_n, use_container_width=True)
+        cg1, cg2 = st.columns(2)
+        with cg1:
+            g_mus = df.groupby('Müşteri Adı')['Hesaplanan Zaman (Saat)'].sum().reset_index()
+            fig_m = px.bar(g_mus, x='Müşteri Adı', y='Hesaplanan Zaman (Saat)', title="Müşteri Bazlı Toplam Zaman")
+            st.plotly_chart(fig_m, use_container_width=True)
+        with cg2:
+            g_ned = df.groupby('Duruş Nedeni')['Hesaplanan Zaman (Saat)'].sum().reset_index()
+            fig_n = px.bar(g_ned, x='Duruş Nedeni', y='Hesaplanan Zaman (Saat)', title="Duruş Nedenleri Dağılımı")
+            st.plotly_chart(fig_n, use_container_width=True)
+            
+        fig_trend = px.line(df, x='Dönem (Ay/Yıl)', y='Hesaplanan Zaman (Saat)', color='Müşteri Adı', markers=True, title="Dönemsel Zaman Trend Analizi")
+        st.plotly_chart(fig_trend, use_container_width=True)
+    else:
+        st.info("Grafik oluşturulabilmesi için yeterli aktif sistem verisi bulunmuyor.")
 
 # ---------------- TAB 4: GEÇMİŞ DÖNEM ----------------
 with tab4:
