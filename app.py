@@ -142,11 +142,11 @@ if "logged_in" not in st.session_state:
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
 
-# --- ORTAK CHAT / MESAJLAŞMA HAFIZASI (Session State) ---
+# --- ORTAK CHAT / MESAJLAŞMA HAFIZASI ---
 if "chat_messages" not in st.session_state:
     st.session_state["chat_messages"] = [
-        {"zaman": "19.09.2026 10:30", "gonderen": "Mehmet ALAŞAR", "mesaj": "Ömer Bey, eylül ayı raporunu kontrol edebilir misiniz?"},
-        {"zaman": "19.09.2026 10:35", "gonderen": "Ömer OCAK", "mesaj": "Tabii ki Mehmet Bey, hemen inceliyorum."}
+        {"zaman": "19.09.2026 10:30", "gonderen": "Mehmet ALAŞAR", "mesaj": "Ömer Bey, eylül ayı raporunu kontrol edebilir misiniz?", "dosya_linki": ""},
+        {"zaman": "19.09.2026 10:35", "gonderen": "Ömer OCAK", "mesaj": "Tabii ki Mehmet Bey, hemen inceliyorum.", "dosya_linki": ""}
     ]
 
 # --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ ---
@@ -806,7 +806,7 @@ with tab4:
 # ---------------- TAB 5: CANLI SORU & SOHBET ----------------
 with tab5:
     st.subheader("💬 Canlı İletişim & Soru-Cevap Paneli")
-    st.markdown("Ömer OCAK ve Mehmet ALAŞAR arasında operasyonel soru, talep ve notların iletildiği canlı mesajlaşma alanıdır.")
+    st.markdown("Ömer OCAK ve Mehmet ALAŞAR arasında operasyonel soru, talep ve belge paylaşımlarının yapıldığı canlı iletişim alanıdır.")
     st.markdown("---")
     
     # Sohbet geçmişini göster
@@ -819,12 +819,22 @@ with tab5:
                 gonderen = m["gonderen"]
                 zaman = m["zaman"]
                 mesaj = m["mesaj"]
+                dosya_linki = m.get("dosya_linki", "")
+                
+                dosya_html = ""
+                if dosya_linki and dosya_linki.startswith("http"):
+                    dosya_html = f"""
+                    <div style="margin-top: 8px; background: rgba(0,0,0,0.05); padding: 6px 10px; border-radius: 6px;">
+                        📎 <strong>Paylaşılan Belge / Dosya:</strong> <a href="{dosya_linki}" target="_blank" style="color: #1f77b4; font-weight: bold; text-decoration: underline;">Dosyayı Aç ve İndir</a>
+                    </div>
+                    """
                 
                 if gonderen == user["name"]:
                     st.markdown(f"""
                     <div style="background-color: #e3f2fd; padding: 10px 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #1f77b4;">
                         <strong>Siz ({gonderen})</strong> <span style="font-size: 11px; color: gray; float: right;">{zaman}</span><br>
                         <p style="margin: 5px 0 0 0; color: #333;">{mesaj}</p>
+                        {dosya_html}
                     </div>
                     """, unsafe_allow_html=True)
                 else:
@@ -832,23 +842,36 @@ with tab5:
                     <div style="background-color: #f1f8e9; padding: 10px 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #2ca02c;">
                         <strong>{gonderen}</strong> <span style="font-size: 11px; color: gray; float: right;">{zaman}</span><br>
                         <p style="margin: 5px 0 0 0; color: #333;">{mesaj}</p>
+                        {dosya_html}
                     </div>
                     """, unsafe_allow_html=True)
                     
     # Mesaj gönderme formu
     with st.form("chat_form", clear_on_submit=True):
-        yeni_mesaj = st.text_area("Mesajınızı veya sorunuzu yazın...", placeholder="Örn: Mehmet Bey, Eylül ayı onay belgeleri hakkında...")
-        btn_gonder = st.form_submit_button("📨 Mesaj Gönder", use_container_width=True)
+        yeni_mesaj = st.text_area("Mesajınızı veya sorunuzu yazın...", placeholder="Örn: Mehmet Bey, yeni irsaliye belgesini iletiyorum...")
+        dosya_input_link = st.text_input("📎 Dosya / Belge Linki Ekleyin (Opsiyonel)", placeholder="https://drive.google.com/...")
+        
+        btn_gonder = st.form_submit_button("📨 Mesaj ve Belge Gönder", use_container_width=True)
         
         if btn_gonder:
-            if not yeni_mesaj.strip():
-                st.warning("Boş mesaj gönderilemez!")
+            if not yeni_mesaj.strip() and not dosya_input_link.strip():
+                st.warning("Boş mesaj veya dosya gönderilemez!")
             else:
                 zaman_str = datetime.now().strftime("%d.%m.%Y %H:%M")
                 st.session_state["chat_messages"].append({
                     "zaman": zaman_str,
                     "gonderen": user["name"],
-                    "mesaj": yeni_mesaj.strip()
+                    "mesaj": yeni_mesaj.strip() if yeni_mesaj.strip() else "Belge paylaşıldı.",
+                    "dosya_linki": dosya_input_link.strip()
                 })
-                st.success("Mesajınız iletildi!")
+                st.success("Mesajınız ve belgeniz başarıyla iletildi!")
+                st.rerun()
+
+    # --- ÖMER BEY (ADMIN) İÇİN CHATİ TEMİZLE BUTONU ---
+    if user["role"] == "admin":
+        st.markdown("---")
+        with st.expander("⚙️ Sohbet Yönetimi"):
+            if st.button("🗑️ Sohbet Geçmişini Tamamen Temizle", type="primary"):
+                st.session_state["chat_messages"] = []
+                st.success("Sohbet geçmişi temizlendi!")
                 st.rerun()
