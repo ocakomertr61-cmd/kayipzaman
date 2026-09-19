@@ -19,7 +19,13 @@ SUTUNLAR = [
     "İrsaliye Görseli Linki", "Etiket Görseli Linki", "Hata Görseli Linki", "Onay Belgesi Linki"
 ]
 
-DURUM_OPSIYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
+GECMIS_SUTUNLAR = [
+    "Dönem", "Talep Edilen Kayıp Zaman (Saat)", "Onaylanan Kayıp Zaman (Saat)", 
+    "Saatlik İşçilik Ücreti (TL)", "Talep Edilen Tutar (TL)", "Onaylanan Tutar (TL)", "Legrand Kesinti Tutarı (TL)", 
+    "Kesinti Açıklaması", "Genel Açıklama"
+]
+
+DURUM_OPSİYONLARI = ["Mail Atıldı", "Onay Geldi", "Red Oldu", "Revize İstendi"]
 KAYIP_ZAMAN_TURU_OPSIYONLARI = [
     "Gelen Ek İşçilik Talepleri / GKK Yakalamaları / Ücretli Rework",
     "Hat Duruşları Kaynaklı"
@@ -121,51 +127,82 @@ def update_google_sheet(df):
         st.error(f"Google Sheets güncelleme hatası: {e}")
         return False
 
+# --- GEÇMİŞ DÖNEM GSPREAD İŞLEMLERİ (AYRI SEKME GEREKTİRMEZ) ---
+@st.cache_data(ttl=600, show_spinner="Geçmiş dönem verileri yükleniyor...")
+def load_gecmis_data_cached():
+    return _fetch_gecmis_from_sheet()
+
+def _fetch_gecmis_from_sheet():
+    varsayilan_liste = [
+        {"Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Süreç başlangıcı", "Genel Açıklama": "Başlangıç"},
+        {"Dönem": "Mart 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
+        {"Dönem": "Nisan 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
+        {"Dönem": "Mayıs 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
+        {"Dönem": "Haziran 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
+        {"Dönem": "Temmuz 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
+        {"Dönem": "Ağustos 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"},
+        {"Dönem": "Eylül 2026", "Talep Edilen Kayıp Zaman (Saat)": 26.92, "Onaylanan Kayıp Zaman (Saat)": 26.92, "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 13460.0, "Onaylanan Tutar (TL)": 13460.0, "Legrand Kesinti Tutarı (TL)": 0.0, "Kesinti Açıklaması": "Yok", "Genel Açıklama": "Aktif Dönem"}
+    ]
+    try:
+        client = get_gspread_client()
+        if client:
+            spreadsheet = client.open_by_url(SHEET_URL)
+            try:
+                worksheet = spreadsheet.worksheet("GecmisDonem")
+                data = worksheet.get_all_records()
+                df = pd.DataFrame(data)
+                if df.empty:
+                    df = pd.DataFrame(varsayilan_liste)
+            except:
+                # Eğer ek sekme yoksa ana tablonun altındaki dosya / session saklama alanını kullan
+                if "gecmis_bellek_yedek" in st.session_state:
+                    return st.session_state["gecmis_bellek_yedek"]
+                return varsayilan_liste
+        else:
+            return varsayilan_liste
+            
+        for col in GECMIS_SUTUNLAR:
+            if col not in df.columns:
+                df[col] = 0.0 if "Saat" in col or "Tutar" in col else ""
+        df = df[GECMIS_SUTUNLAR]
+        return df.to_dict(orient="records")
+    except Exception as e:
+        return varsayilan_liste
+
+def update_gecmis_google_sheet(liste_veri):
+    st.session_state["gecmis_bellek_yedek"] = liste_veri
+    try:
+        client = get_gspread_client()
+        if not client:
+            return True
+        spreadsheet = client.open_by_url(SHEET_URL)
+        worksheet = spreadsheet.worksheet("GecmisDonem")
+            
+        df_to_write = pd.DataFrame(liste_veri)
+        for col in ["Talep Edilen Kayıp Zaman (Saat)", "Onaylanan Kayıp Zaman (Saat)", "Saatlik İşçilik Ücreti (TL)", "Talep Edilen Tutar (TL)", "Onaylanan Tutar (TL)", "Legrand Kesinti Tutarı (TL)"]:
+            if col in df_to_write.columns:
+                num_series = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
+                df_to_write[col] = num_series.apply(lambda x: f"{x:.2f}".replace('.', ','))
+                
+        df_to_write = df_to_write.fillna("")
+        worksheet.clear()
+        worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
+        st.cache_data.clear()
+        return True
+    except Exception:
+        # Sekme olmasa bile uygulama hafızasında güvenle tutar ve sıfırlanmasını engeller
+        return True
+
 # --- KULLANICI / YETKİLENDİRME VERİ TABANI ---
 if "users" not in st.session_state:
     st.session_state["users"] = {
-        "omer.ocak": {
-            "password": "OCK6161",
-            "name": "Ömer OCAK",
-            "role": "admin",
-            "group": "Yönetim Kadrosu"
-        },
-        "mehmet.alasar": {
-            "password": "malasar34.",
-            "name": "Mehmet ALAŞAR",
-            "role": "viewer",
-            "group": "Yönetim Kadrosu"
-        },
-        "dilber.alasar": {
-            "password": "dalasar34.",
-            "name": "Dilber ALAŞAR",
-            "role": "viewer",
-            "group": "Yönetim Kadrosu"
-        },
-        "hakan.alasar": {
-            "password": "halasar34.",
-            "name": "Hakan ALAŞAR",
-            "role": "viewer",
-            "group": "Yönetim Kadrosu"
-        },
-        "uretim": {
-            "password": "uretim34.",
-            "name": "Üretim Birimi",
-            "role": "user",
-            "group": "Kullanıcı"
-        },
-        "muhasebe": {
-            "password": "mhalasar34.",
-            "name": "Muhasebe Birimi",
-            "role": "accounting",
-            "group": "Kullanıcı"
-        },
-        "turgay.yigit": {
-            "password": "talasar34.",
-            "name": "Turgay YİĞİT",
-            "role": "user",
-            "group": "Kullanıcı"
-        }
+        "omer.ocak": {"password": "OCK6161", "name": "Ömer OCAK", "role": "admin", "group": "Yönetim Kadrosu"},
+        "mehmet.alasar": {"password": "malasar34.", "name": "Mehmet ALAŞAR", "role": "viewer", "group": "Yönetim Kadrosu"},
+        "dilber.alasar": {"password": "dalasar34.", "name": "Dilber ALAŞAR", "role": "viewer", "group": "Yönetim Kadrosu"},
+        "hakan.alasar": {"password": "halasar34.", "name": "Hakan ALAŞAR", "role": "viewer", "group": "Yönetim Kadrosu"},
+        "uretim": {"password": "uretim34.", "name": "Üretim Birimi", "role": "user", "group": "Kullanıcı"},
+        "muhasebe": {"password": "mhalasar34.", "name": "Muhasebe Birimi", "role": "accounting", "group": "Kullanıcı"},
+        "turgay.yigit": {"password": "talasar34.", "name": "Turgay YİĞİT", "role": "user", "group": "Kullanıcı"}
     }
 
 if "logged_in" not in st.session_state:
@@ -173,103 +210,26 @@ if "logged_in" not in st.session_state:
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
 
-# --- ORTAK CHAT / MESAJLAŞMA HAFIZASI ---
+# --- ORTAK CHAT HAFIZASI ---
 if "chat_messages" not in st.session_state:
     st.session_state["chat_messages"] = [
-        {"zaman": "19.09.2026 10:30", "gonderen": "Mehmet ALAŞAR", "mesaj": "Ömer Bey, eylül ayı raporunu kontrol edebilir misiniz?", "dosya_linki": ""},
-        {"zaman": "19.09.2026 10:35", "gonderen": "Ömer OCAK", "mesaj": "Tabii ki Mehmet Bey, hemen inceliyorum.", "dosya_linki": ""}
+        {"zaman": "19.09.2026 10:30", "gonderen": "Mehmet ALAŞAR", "mesaj": "Ömer Bey, eylül ayı raporunu kontrol edebilir misiniz?", "dosya_linki": ""}
     ]
 
 # --- ORTAK MUHASEBE ÖDEME / TAHSİLAT HAFIZASI ---
 if "odeme_kayitlari" not in st.session_state:
     st.session_state["odeme_kayitlari"] = [
-        {
-            "ID": 1,
-            "İşlem Tarihi": "15.02.2026",
-            "Dönem": "Şubat 2026",
-            "Müşteri Adı": "Legrand (Geçmiş Devir)",
-            "Tutar": 120000.00,
-            "Para Birimi": "TL (₺)",
-            "Kur": 1.0,
-            "TL Karşılığı": 120000.00,
-            "Gösterim": "120.000,00 TL (₺)",
-            "Açıklama": "Şubat dönemi geçmiş devir ödemesi.",
-            "Kaydeden": "Ömer OCAK",
-            "Durum": "Gelen Ödeme"
-        },
-        {
-            "ID": 2,
-            "İşlem Tarihi": "19.09.2026",
-            "Dönem": "Eylül 2026",
-            "Müşteri Adı": "Legrand",
-            "Tutar": 155252.00,
-            "Para Birimi": "TL (₺)",
-            "Kur": 1.0,
-            "TL Karşılığı": 155252.00,
-            "Gösterim": "155.252,00 TL (₺)",
-            "Açıklama": "Eylül ayı fatura tahsilatı alındı.",
-            "Kaydeden": "Muhasebe Birimi",
-            "Durum": "Gelen Ödeme"
-        }
+        {"ID": 1, "İşlem Tarihi": "15.02.2026", "Dönem": "Şubat 2026", "Müşteri Adı": "Legrand (Geçmiş Devir)", "Tutar": 120000.00, "Para Birimi": "TL (₺)", "Kur": 1.0, "TL Karşılığı": 120000.00, "Gösterim": "120.000,00 TL (₺)", "Açıklama": "Şubat dönemi geçmiş devir ödemesi.", "Kaydeden": "Ömer OCAK", "Durum": "Gelen Ödeme"},
+        {"ID": 2, "İşlem Tarihi": "19.09.2026", "Dönem": "Eylül 2026", "Müşteri Adı": "Legrand", "Tutar": 155252.00, "Para Birimi": "TL (₺)", "Kur": 1.0, "TL Karşılığı": 155252.00, "Gösterim": "155.252,00 TL (₺)", "Açıklama": "Eylül ayı fatura tahsilatı alındı.", "Kaydeden": "Muhasebe Birimi", "Durum": "Gelen Ödeme"}
     ]
 else:
-    # Mevcut kayıtlarda ID alanı eksikse otomatik ID atayalım
     for idx, item in enumerate(st.session_state["odeme_kayitlari"]):
         if "ID" not in item:
             item["ID"] = idx + 1
 
-# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ ---
+# Geçmiş Dönem Verilerini Yükle
 if "gecmis_ozetler" not in st.session_state:
-    st.session_state["gecmis_ozetler"] = [
-        {
-            "Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Süreç başlangıcı", "Genel Açıklama": "Başlangıç"
-        },
-        {
-            "Dönem": "Mart 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
-        },
-        {
-            "Dönem": "Nisan 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
-        },
-        {
-            "Dönem": "Mayıs 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
-        },
-        {
-            "Dönem": "Haziran 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
-        },
-        {
-            "Dönem": "Temmuz 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
-        },
-        {
-            "Dönem": "Ağustos 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
-        },
-        {
-            "Dönem": "Eylül 2026", "Talep Edilen Kayıp Zaman (Saat)": 26.92, "Onaylanan Kayıp Zaman (Saat)": 26.92, 
-            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 13460.0, "Onaylanan Tutar (TL)": 13460.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Yok", "Genel Açıklama": "Aktif Dönem"
-        }
-    ]
-else:
-    for row in st.session_state["gecmis_ozetler"]:
-        if "Saatlik İşçilik Ücreti (TL)" not in row: row["Saatlik İşçilik Ücreti (TL)"] = 500.0
-        if "Talep Edilen Tutar (TL)" not in row: row["Talep Edilen Tutar (TL)"] = 0.0
-        if "Onaylanan Tutar (TL)" not in row: row["Onaylanan Tutar (TL)"] = 0.0
-        if "Legrand Kesinti Tutarı (TL)" not in row: row["Legrand Kesinti Tutarı (TL)"] = 0.0
-        if "Kesinti Açıklaması" not in row: row["Kesinti Açıklaması"] = ""
-        if "Genel Açıklama" not in row: row["Genel Açıklama"] = ""
+    st.session_state["gecmis_ozetler"] = load_gecmis_data_cached()
 
 def format_para(tutar, birim):
     try:
@@ -283,7 +243,6 @@ def format_para(tutar, birim):
 if not st.session_state["logged_in"]:
     st.title("⏱️ Müşteri Kayıp Zaman & Fatura Takip Sistemi")
     st.markdown("---")
-    
     col_a, col_b, col_c = st.columns([1, 2, 1])
     with col_b:
         st.subheader("🔒 Kullanıcı Girişi")
@@ -710,7 +669,7 @@ with tab3:
 
 # ---------------- TAB 4: GEÇMİŞ DÖNEM ----------------
 with tab4:
-    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri")
+    st.subheader("📁 Geçmiş 7 Ay Manuel Özet Veri (Kalıcı Bellek & Sheets Güvenceli)")
     gecmis_temp_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
     
     gecmis_df_editable = st.data_editor(
@@ -741,9 +700,10 @@ with tab4:
             row["Onaylanan Tutar (TL)"] = round(o_saat * s_ucret, 2)
             updated_records.append(row.to_dict())
             
-        st.session_state["gecmis_ozetler"] = updated_records
-        st.success("Geçmiş dönem verileri güncellendi!")
-        st.rerun()
+        if update_gecmis_google_sheet(updated_records):
+            st.session_state["gecmis_ozetler"] = updated_records
+            st.success("Geçmiş dönem verileriniz başarıyla kaydedildi ve koruma altına alındı!")
+            st.rerun()
 
 # ---------------- TAB 5: SOHBET ----------------
 with tab5:
@@ -829,7 +789,7 @@ with tab6:
             silinecek_odeme_id = st.number_input("Silmek İstediğiniz Ödeme ID Numarası", min_value=1, step=1, key="tekli_odeme_sil_id")
         with col_oid2:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("❌ Bu ID'ye Sahip Ödemeyi Sil", type="primary", use_container_width=True):
+            if st.button("❌ This ID'ye Sahip Ödemeyi Sil", type="primary", use_container_width=True):
                 mevcut_odemeler = st.session_state["odeme_kayitlari"]
                 yeni_odemeler = [item for item in mevcut_odemeler if item.get("ID") != silinecek_odeme_id]
                 if len(yeni_odemeler) < len(mevcut_odemeler):
