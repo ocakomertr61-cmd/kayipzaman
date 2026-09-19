@@ -152,19 +152,19 @@ if "users" not in st.session_state:
         "uretim": {
             "password": "uretim34.",
             "name": "Üretim Birimi",
-            "role": "viewer",
+            "role": "user",
             "group": "Kullanıcı"
         },
         "muhasebe": {
             "password": "mhalasar34.",
             "name": "Muhasebe Birimi",
-            "role": "viewer",
+            "role": "accounting",
             "group": "Kullanıcı"
         },
         "turgay.yigit": {
             "password": "talasar34.",
             "name": "Turgay YİĞİT",
-            "role": "viewer",
+            "role": "user",
             "group": "Kullanıcı"
         }
     }
@@ -179,6 +179,19 @@ if "chat_messages" not in st.session_state:
     st.session_state["chat_messages"] = [
         {"zaman": "19.09.2026 10:30", "gonderen": "Mehmet ALAŞAR", "mesaj": "Ömer Bey, eylül ayı raporunu kontrol edebilir misiniz?", "dosya_linki": ""},
         {"zaman": "19.09.2026 10:35", "gonderen": "Ömer OCAK", "mesaj": "Tabii ki Mehmet Bey, hemen inceliyorum.", "dosya_linki": ""}
+    ]
+
+# --- ORTAK MUHASEBE ÖDEME / TAHSİLAT HAFIZASI ---
+if "odeme_kayitlari" not in st.session_state:
+    st.session_state["odeme_kayitlari"] = [
+        {
+            "İşlem Tarihi": "19.09.2026",
+            "Dönem": "Eylül 2026",
+            "Müşteri Adı": "Legrand (Örnek)",
+            "Yatan Tutar (TL / Döviz)": "15.420,00 TL",
+            "Açıklama": "Eylül ayı fatura tahsilatı alındı.",
+            "Kaydeden": "Muhasebe Birimi"
+        }
     ]
 
 # --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ ---
@@ -284,7 +297,7 @@ if not st.session_state["logged_in"]:
 # --- SİDEBAR ---
 user = st.session_state["user_info"]
 st.sidebar.title(f"👤 {user['name']}")
-st.sidebar.caption(f"Grup: {user['group']} | Rol: {'Yönetici (Admin)' if user['role'] == 'admin' else 'Kullanıcı'}")
+st.sidebar.caption(f"Grup: {user['group']} | Rol: {'Yönetici (Admin)' if user['role'] == 'admin' else 'Muhasebe' if user['role'] == 'accounting' else 'Kullanıcı'}")
 
 with st.sidebar.expander("🔑 Parola Değiştir"):
     with st.form("change_pass_form"):
@@ -318,12 +331,35 @@ st.markdown("---")
 
 df = load_data()
 
+# Sekme Yapısı (Rollerine Göre)
 if user["role"] == "admin":
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Rapor", "📁 Geçmiş Dönem Manuel Veriler", "💬 Canlı Soru & Sohbet"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "➕ Yeni Kayıp Zaman Kaydı Ekle", 
+        "📊 Kayıt Yönetimi (Düzenle & Sil)", 
+        "📈 Analiz & Rapor", 
+        "📁 Geçmiş Dönem Manuel Veriler", 
+        "💬 Canlı Soru & Sohbet",
+        "💰 Gelen Ödemeler & Tahsilatlar"
+    ])
+elif user["role"] == "accounting":
+    tab_muh_giris, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "💰 Ödeme Bilgisi Gir",
+        "📊 Kayıt Listesi", 
+        "📈 Analiz & Rapor", 
+        "📁 Geçmiş Dönem Manuel Veriler", 
+        "💬 Canlı Soru & Sohbet",
+        "💰 Gelen Ödemeler & Tahsilatlar"
+    ])
 else:
-    tab2, tab3, tab4, tab5 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & Rapor", "📁 Geçmiş Dönem Manuel Veriler", "💬 Canlı Soru & Sohbet"])
+    tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📊 Kayıt Listesi (Salt Okunur)", 
+        "📈 Analiz & Rapor", 
+        "📁 Geçmiş Dönem Manuel Veriler", 
+        "💬 Canlı Soru & Sohbet",
+        "💰 Gelen Ödemeler & Tahsilatlar"
+    ])
 
-# ---------------- TAB 1: FORM ----------------
+# ---------------- TAB 1: FORM (Yalnızca Admin) ----------------
 if user["role"] == "admin":
     with tab1:
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
@@ -431,6 +467,40 @@ if user["role"] == "admin":
                 guncel_df = pd.concat([mevcut_df, yeni_kayit], ignore_index=True)
                 if update_google_sheet(guncel_df):
                     st.success(f"ID #{yeni_id} ({secilen_donem_form} - {musteri_adi}) başarıyla kaydedildi!")
+                    st.rerun()
+
+# ---------------- MUHASEBE ÖZEL GİRİŞ SEKMESİ ----------------
+if user["role"] == "accounting":
+    with tab_muh_giris:
+        st.subheader("💰 Yeni Müşteri Ödemesi / Tahsilatı Gir")
+        st.markdown("Müşteriden gelen ödemeleri buraya girerek Ömer Bey, Mehmet Bey, Dilber Hanım ve Hakan Bey'in panellerine anında iletebilirsiniz.")
+        
+        with st.form("muhasebe_odeme_form", clear_on_submit=True):
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                muh_donem = st.selectbox("Dönem Seçin (Ay / Yıl) *", options=DONEM_LISTESI, index=8, key="muh_donem_sec")
+                muh_musteri = st.text_input("Müşteri Adı *", placeholder="Örn: Legrand / Schneider vb.", key="muh_musteri_adi")
+            with col_m2:
+                muh_tutar = st.text_input("Yatan Tutar (TL / Döviz) *", placeholder="Örn: 25.000,00 TL", key="muh_tutar_val")
+                muh_tarih = st.text_input("Ödeme Tarihi", value=datetime.now().strftime("%d.%m.%Y"), key="muh_tarih_val")
+                
+            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Fatura no, banka bilgisi veya ek açıklamalar...", key="muh_aciklama_val")
+            
+            btn_odeme_kaydet = st.form_submit_button("💾 Ödeme Bilgisini Yönetime İlet", use_container_width=True, type="primary")
+            
+            if btn_odeme_kaydet:
+                if not muh_musteri.strip() or not muh_tutar.strip():
+                    st.error("Lütfen Müşteri Adı ve Yatan Tutar alanlarını doldurunuz!")
+                else:
+                    st.session_state["odeme_kayitlari"].insert(0, {
+                        "İşlem Tarihi": muh_tarih,
+                        "Dönem": muh_donem,
+                        "Müşteri Adı": muh_musteri.strip(),
+                        "Yatan Tutar (TL / Döviz)": muh_tutar.strip(),
+                        "Açıklama": muh_aciklama.strip() if muh_aciklama.strip() else "Açıklama girilmedi.",
+                        "Kaydeden": user["name"]
+                    })
+                    st.success("Ödeme bilgisi başarıyla muhasebe sistemine işlendi ve yönetim kadrosuna iletildi!")
                     st.rerun()
 
 # ---------------- TAB 2: YÖNETİM ----------------
@@ -843,7 +913,6 @@ with tab5:
     st.markdown("Tüm ekip üyeleri arasında operasyonel soru, talep ve belge paylaşımlarının yapıldığı canlı iletişim alanıdır.")
     st.markdown("---")
     
-    # Sohbet geçmişini göster
     chat_container = st.container(height=400)
     with chat_container:
         if not st.session_state["chat_messages"]:
@@ -880,7 +949,6 @@ with tab5:
                     </div>
                     """, unsafe_allow_html=True)
                     
-    # Mesaj gönderme formu
     with st.form("chat_form", clear_on_submit=True):
         yeni_mesaj = st.text_area("Mesajınızı veya sorunuzu yazın...", placeholder="Örn: Mehmet Bey, yeni irsaliye belgesini iletiyorum...")
         dosya_input_link = st.text_input("📎 Dosya / Belge Linki Ekleyin (Opsiyonel)", placeholder="https://drive.google.com/...")
@@ -901,11 +969,30 @@ with tab5:
                 st.success("Mesajınız ve belgeniz başarıyla iletildi!")
                 st.rerun()
 
-    # --- ÖMER BEY (ADMIN) İÇİN CHATİ TEMİZLE BUTONU ---
     if user["role"] == "admin":
         st.markdown("---")
         with st.expander("⚙️ Sohbet Yönetimi"):
             if st.button("🗑️ Sohbet Geçmişini Tamamen Temizle", type="primary"):
                 st.session_state["chat_messages"] = []
                 st.success("Sohbet geçmişi temizlendi!")
+                st.rerun()
+
+# ---------------- TAB 6: GELEN ÖDEMELER & TAHSİLATLAR ----------------
+with tab6:
+    st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu")
+    st.markdown("Muhasebe birimi tarafından girilen müşteri ödemeleri ve tahsilat bildirimleri aşağıda listelenmektedir.")
+    st.markdown("---")
+    
+    odeme_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
+    
+    if odeme_df.empty:
+        st.info("Henüz kaydedilmiş bir ödeme bildirimi bulunmuyor.")
+    else:
+        st.dataframe(odeme_df, use_container_width=True)
+        
+    if user["role"] == "admin":
+        with st.expander("⚙️ Ödeme Kayıtlarını Yönet"):
+            if st.button("🗑️ Tüm Ödeme Geçmişini Temizle", type="primary"):
+                st.session_state["odeme_kayitlari"] = []
+                st.success("Ödeme kayıtları temizlendi!")
                 st.rerun()
