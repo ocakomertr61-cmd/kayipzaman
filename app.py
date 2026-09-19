@@ -248,6 +248,11 @@ if "gecmis_ozetler" not in st.session_state:
             "Dönem": "Ağustos 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
             "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
             "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
+        },
+        {
+            "Dönem": "Eylül 2026", "Talep Edilen Kayıp Zaman (Saat)": 26.92, "Onaylanan Kayıp Zaman (Saat)": 26.92, 
+            "Saatlik İşçilik Ücreti (TL)": 500.0, "Talep Edilen Tutar (TL)": 13460.0, "Onaylanan Tutar (TL)": 13460.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Yok", "Genel Açıklama": "Aktif Dönem"
         }
     ]
 else:
@@ -479,44 +484,64 @@ with tab1:
                     st.rerun()
 
     elif user["role"] == "accounting":
-        st.subheader("💰 Müşteri Ödemesi / Tahsilat Girişi (Geçmiş veya Güncel Dönem)")
+        st.subheader("💰 Müşteri Ödemesi / Tahsilat Girişi (Ömer'in Dönem Bazlı Onaylanan Tutarları Üzerinden)")
+        
+        # Geçmiş dönem özet verilerinden dönem ve onaylanan tutarları hazırlayalım
+        gecmis_liste = st.session_state["gecmis_ozetler"]
+        donem_secenekleri = [f"{item['Dönem']} — Onaylanan Tutar: {item['Onaylanan Tutar (TL)']:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") for item in gecmis_liste]
+        
         with st.form("muhasebe_odeme_form", clear_on_submit=True):
-            col_m1, col_m2, col_m3 = st.columns(3)
+            col_m1, col_m2 = st.columns(2)
             with col_m1:
-                muh_donem = st.selectbox("Dönem Seçin (Ay / Yıl) *", options=DONEM_LISTESI, index=0, key="muh_donem_sec")
-                muh_musteri = st.text_input("Müşteri Adı *", placeholder="Örn: Legrand", key="muh_musteri_adi")
-            with col_m2:
-                muh_tutar = st.number_input("Tutar *", min_value=0.0, value=155252.00, step=100.0, format="%.2f", key="muh_tutar_val")
-                muh_para_birimi = st.selectbox("Para Birimi", options=["TL (₺)", "USD ($)", "EUR (€)"], key="muh_pb")
-            with col_m3:
-                muh_kur = st.number_input("TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
+                secilen_donem_str = st.selectbox("Ömer'in Girdiği Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
+                
+                # Seçilen dönemi ve onaylanan tutarı parse etme
+                secilen_donem_adi = secilen_donem_str.split(" — ")[0]
+                secilen_item = next((item for item in gecmis_liste if item["Dönem"] == secilen_donem_adi), None)
+                varsayilan_onaylanan_tutar = secilen_item["Onaylanan Tutar (TL)"] if secilen_item else 0.0
+                
+                muh_musteri = st.text_input("Müşteri Adı *", value="Legrand", key="muh_musteri_adi")
                 muh_tarih = st.text_input("Ödeme / İşlem Tarihi", value=datetime.now().strftime("%d.%m.%Y"), key="muh_tarih_val")
+                
+            with col_m2:
+                st.info(f"📋 Seçilen Dönem Onaylanan Tutar: **{varsayilan_onaylanan_tutar:,.2f} TL**".replace(",", "X").replace(".", ",").replace("X", "."))
+                
+                farkli_tutar_mi = st.radio("Gelen Tutar Farklı mı?", ["Hayır (Aynı Tutar)", "Evet (Farklı Tutar Gir)"], horizontal=True, key="muh_farkli_tutar_radio")
+                
+                if "Evet" in farkli_tutar_mi:
+                    muh_tutar = st.number_input("Gerçekleşen / Gelen Özel Tutar *", min_value=0.0, value=float(varsayilan_onaylanan_tutar), step=100.0, format="%.2f", key="muh_ozel_tutar")
+                else:
+                    muh_tutar = float(varsayilan_onaylanan_tutar)
+                    st.success(f"Kullanılacak Tutar: {muh_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+                    
+                muh_para_birimi = st.selectbox("Para Birimi", options=["TL (₺)", "USD ($)", "EUR (€)"], key="muh_pb")
+                muh_kur = st.number_input("TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
                 
             muh_durum_tipi = st.selectbox("Ödeme Durumu", options=["Gelen Ödeme", "Bekleyen Ödeme"], key="muh_durum_tipi")
             hesaplanan_tl = muh_tutar if "TL" in muh_para_birimi else muh_tutar * muh_kur
             
-            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Geçmiş dönem devri veya fatura no...", key="muh_aciklama_val")
+            muh_aciklama = st.text_area("Açıklama / Notlar", placeholder="Farklı tutar girildiyse gerekçesi veya banka dekont bilgisi...", key="muh_aciklama_val")
             btn_odeme_kaydet = st.form_submit_button("💾 Ödeme / Tahsilat Kaydet", use_container_width=True, type="primary")
             
             if btn_odeme_kaydet:
-                if not muh_musteri.strip() or muh_tutar <= 0:
+                if not muh_musteri.strip() or muh_tutar < 0:
                     st.error("Lütfen geçerli bir Müşteri Adı ve Tutar giriniz!")
                 else:
                     gosterim_str = format_para(muh_tutar, muh_para_birimi)
                     st.session_state["odeme_kayitlari"].insert(0, {
                         "İşlem Tarihi": muh_tarih,
-                        "Dönem": muh_donem,
+                        "Dönem": secilen_donem_adi,
                         "Müşteri Adı": muh_musteri.strip(),
                         "Tutar": muh_tutar,
                         "Para Birimi": muh_para_birimi,
                         "Kur": muh_kur,
                         "TL Karşılığı": hesaplanan_tl,
                         "Gösterim": gosterim_str,
-                        "Açıklama": muh_aciklama.strip() if muh_aciklama.strip() else "Açıklama yok.",
+                        "Açıklama": muh_aciklama.strip() if muh_aciklama.strip() else f"{secilen_donem_adi} dönemi tahsilatı.",
                         "Kaydeden": user["name"],
                         "Durum": muh_durum_tipi
                     })
-                    st.success("Ödeme kaydı sisteme başarıyla işlendi ve otomatik güncellendi!")
+                    st.success("Ödeme kaydı sisteme başarıyla işlendi ve güncellendi!")
                     st.rerun()
     else:
         st.subheader("📊 Kayıt Listesi (Salt Okunur)")
@@ -728,7 +753,6 @@ with tab5:
 with tab6:
     st.subheader("💰 Müşteri Ödemeleri & Tahsilat Takip Panosu (Geçmiş Dönemler Dahil)")
     
-    # Yalnızca Admin (Ömer OCAK) ve Muhasebe (accounting) rollerine silme/temizleme izni verilir
     yetkili_mi = (user["role"] == "admin" or user["role"] == "accounting")
     
     odeme_df = pd.DataFrame(st.session_state["odeme_kayitlari"])
