@@ -66,9 +66,8 @@ def get_gspread_client():
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
 
-# --- ANA TABLO (guncel) İŞLEMLERİ (ttl=0 ile anlık okunur) ---
-@st.cache_data(ttl=0, show_spinner="Google Sheets'ten veriler yükleniyor...")
-def load_data_cached():
+# --- VERİ ÇEKME FONKSİYONLARI (Kotayı korumak için optimize edildi) ---
+def fetch_main_data_from_sheet():
     try:
         client = get_gspread_client()
         if client:
@@ -105,9 +104,6 @@ def load_data_cached():
         st.error(f"Veri yükleme hatası: {e}")
         return pd.DataFrame(columns=SUTUNLAR)
 
-def load_data():
-    return load_data_cached()
-
 def update_google_sheet(df):
     try:
         client = get_gspread_client()
@@ -129,24 +125,22 @@ def update_google_sheet(df):
         worksheet.clear()
         worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
         
-        st.cache_data.clear()
+        st.session_state["main_df"] = df.copy()
         return True
     except Exception as e:
         st.error(f"Google Sheets güncelleme hatası: {e}")
         return False
 
-# --- GEÇMİŞ DÖNEM (gecmisdonem) İŞLEMLERİ ---
-@st.cache_data(ttl=0, show_spinner="Geçmiş dönem verileri yükleniyor...")
-def load_gecmis_data_cached():
+def fetch_gecmis_from_sheet():
     varsayilan_liste = [
-        {"ID": 1, "DÖNEM": "Şubat 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Süreç başlangıcı", "GENEL AÇIKLAMA": "Başlangıç"},
-        {"ID": 2, "DÖNEM": "Mart 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
-        {"ID": 3, "DÖNEM": "Nisan 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
-        {"ID": 4, "DÖNEM": "Mayıs 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
-        {"ID": 5, "DÖNEM": "Haziran 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
-        {"ID": 6, "DÖNEM": "Temmuz 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
-        {"ID": 7, "DÖNEM": "Ağustos 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇIKLAMA": "Beklemede"},
-        {"ID": 8, "DÖNEM": "Eylül 2026", "TALEP EDİLEN SAAT": 26.92, "ONAYLANAN SAAT": 26.92, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 13460.0, "ONAYLANAN TUTAR": 13460.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Yok", "GENEL AÇIKLAMA": "Aktif Dönem"}
+        {"ID": 1, "DÖNEM": "Şubat 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Süreç başlangıcı", "GENEL AÇıklama": "Başlangıç"},
+        {"ID": 2, "DÖNEM": "Mart 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
+        {"ID": 3, "DÖNEM": "Nisan 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
+        {"ID": 4, "DÖNEM": "Mayıs 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
+        {"ID": 5, "DÖNEM": "Haziran 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
+        {"ID": 6, "DÖNEM": "Temmuz 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
+        {"ID": 7, "DÖNEM": "Ağustos 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
+        {"ID": 8, "DÖNEM": "Eylül 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Yok", "GENEL AÇıklama": "Aktif Dönem"}
     ]
     try:
         client = get_gspread_client()
@@ -197,15 +191,13 @@ def update_gecmis_google_sheet(liste_veri):
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
         worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
-        st.cache_data.clear()
+        st.session_state["gecmis_ozetler"] = liste_veri
         return True
     except Exception as e:
         st.error(f"Geçmiş dönem sheets güncelleme hatası: {e}")
         return False
 
-# --- ÖDEME TAHSİLAT İŞLEMLERİ ---
-@st.cache_data(ttl=0, show_spinner="Ödeme tahsilat verileri yükleniyor...")
-def load_odeme_data_cached():
+def fetch_odeme_from_sheet():
     varsayilan_odeme = [
         {"ID": 1, "MÜŞTERİ ADI": "Legrand (Geçmiş Devir)", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇIKLAMA NOTLAR": "Şubat dönemi geçmiş devir ödemesi.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 120000.00},
         {"ID": 2, "MÜŞTERİ ADI": "Legrand", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇIKLAMA NOTLAR": "Eylül ayı fatura tahsilatı alındı.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 155252.00}
@@ -258,7 +250,7 @@ def update_odeme_google_sheet(liste_veri):
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
         worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
-        st.cache_data.clear()
+        st.session_state["odeme_kayitlari"] = liste_veri
         return True
     except Exception as e:
         st.error(f"Ödeme sheets güncelleme hatası: {e}")
@@ -287,12 +279,18 @@ if "chat_messages" not in st.session_state:
         {"zaman": "19.09.2026 10:30", "gonderen": "Mehmet ALAŞAR", "mesaj": "Ömer Bey, eylül ayı raporunu kontrol edebilir misiniz?", "dosya_linki": ""}
     ]
 
-# Verileri Session State'e yükle
+# --- SESSION STATE VERİ YÜKLEME (API Kotasını Korumak İçin Bir Kez Yüklenir) ---
+if "main_df" not in st.session_state:
+    st.session_state["main_df"] = fetch_main_data_from_sheet()
+
 if "gecmis_ozetler" not in st.session_state:
-    st.session_state["gecmis_ozetler"] = load_gecmis_data_cached()
+    st.session_state["gecmis_ozetler"] = fetch_gecmis_from_sheet()
 
 if "odeme_kayitlari" not in st.session_state:
-    st.session_state["odeme_kayitlari"] = load_odeme_data_cached()
+    st.session_state["odeme_kayitlari"] = fetch_odeme_from_sheet()
+
+def load_data():
+    return st.session_state["main_df"]
 
 # --- LOGIN EKRANI ---
 if not st.session_state["logged_in"]:
@@ -344,14 +342,12 @@ with st.sidebar.expander("🔑 Parola Değiştir"):
                 st.session_state["users"][user["username"]]["password"] = new_p
                 st.success("Parolanız başarıyla değiştirildi!")
 
-if st.sidebar.button("🔄 Verileri Yenile (Cache Temizle)", use_container_width=True):
+if st.sidebar.button("🔄 Verileri Google Sheets'ten Yenile", use_container_width=True):
     st.cache_data.clear()
-    # Oturumda tutulan tüm dinamik veri listelerini sıfırla, böylece doğrudan Sheets'ten yeniden okunur
-    keys_to_reset = ["gecmis_ozetler", "odeme_kayitlari"]
-    for k in keys_to_reset:
-        if k in st.session_state:
-            del st.session_state[k]
-    st.success("Önbellek ve sistem hafızası temizlendi, güncel veriler yükleniyor...")
+    st.session_state["main_df"] = fetch_main_data_from_sheet()
+    st.session_state["gecmis_ozetler"] = fetch_gecmis_from_sheet()
+    st.session_state["odeme_kayitlari"] = fetch_odeme_from_sheet()
+    st.success("Veriler Google Sheets'ten güncellendi!")
     st.rerun()
 
 if st.sidebar.button("🚪 Çıkış Yap", use_container_width=True):
@@ -571,7 +567,6 @@ with tab1:
                     
                     mevcut_odemeler.append(yeni_kayit_dict)
                     if update_odeme_google_sheet(mevcut_odemeler):
-                        st.session_state["odeme_kayitlari"] = mevcut_odemeler
                         st.success("Ödeme kaydı sisteme ve Google Sheets'e başarıyla işlendi!")
                         st.rerun()
     else:
@@ -752,7 +747,7 @@ with tab4:
             "ONAYLANAN TUTAR": st.column_config.NumberColumn("ONAYLANAN TUTAR", format="%.2f"),
             "KESİNTİ TUTARI": st.column_config.NumberColumn("KESİNTİ TUTARI", format="%.2f"),
             "KESİNTİ AÇIKLAMASI": st.column_config.TextColumn("KESİNTİ AÇIKLAMASI"),
-            "GENEL AÇIKLAMA": st.column_config.TextColumn("GENEL AÇIKLAMA")
+            "GENEL AÇıklama": st.column_config.TextColumn("GENEL AÇıklama")
         },
         use_container_width=True,
         key="gecmis_editor_final"
@@ -770,7 +765,6 @@ with tab4:
             updated_records.append(row.to_dict())
             
         if update_gecmis_google_sheet(updated_records):
-            st.session_state["gecmis_ozetler"] = updated_records
             st.success("Geçmiş dönem verileriniz başarıyla Google Sheets'e kaydedildi!")
             st.rerun()
 
@@ -835,7 +829,6 @@ with tab6:
                 clean_odeme_df = edited_odeme_df.drop(columns=["Seç"], errors="ignore")
                 liste_kayitlari = clean_odeme_df.to_dict(orient="records")
                 if update_odeme_google_sheet(liste_kayitlari):
-                    st.session_state["odeme_kayitlari"] = liste_kayitlari
                     st.success("Ödeme tablosu güncellemeleri Google Sheets'e kaydedildi!")
                     st.rerun()
         else:
@@ -855,14 +848,12 @@ with tab6:
                     kalan_odemeler_df = edited_odeme_df[edited_odeme_df["Seç"] == False].drop(columns=["Seç"], errors="ignore")
                     yeni_liste = kalan_odemeler_df.to_dict(orient="records")
                     if update_odeme_google_sheet(yeni_liste):
-                        st.session_state["odeme_kayitlari"] = yeni_liste
                         st.success("Seçilen ödeme kayıtları silindi!")
                         st.rerun()
                     
         with col_odm_2:
             if st.button("⚠️ Tüm Ödeme Kayıtlarını Temizle", type="secondary", use_container_width=True):
                 if update_odeme_google_sheet([]):
-                    st.session_state["odeme_kayitlari"] = []
                     st.success("Tüm ödeme kayıtları temizlendi!")
                     st.rerun()
                 
@@ -878,7 +869,6 @@ with tab6:
                 yeni_odemeler = [item for item in mevcut_odemeler if item.get("ID") != silinecek_odeme_id]
                 if len(yeni_odemeler) < len(mevcut_odemeler):
                     if update_odeme_google_sheet(yeni_odemeler):
-                        st.session_state["odeme_kayitlari"] = yeni_odemeler
                         st.success(f"ID #{silinecek_odeme_id} numaralı ödeme kaydı silindi!")
                         st.rerun()
                 else:
