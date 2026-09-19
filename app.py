@@ -142,6 +142,13 @@ if "logged_in" not in st.session_state:
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
 
+# --- ORTAK CHAT / MESAJLAŞMA HAFIZASI (Session State) ---
+if "chat_messages" not in st.session_state:
+    st.session_state["chat_messages"] = [
+        {"zaman": "19.09.2026 10:30", "gonderen": "Mehmet ALAŞAR", "mesaj": "Ömer Bey, eylül ayı raporunu kontrol edebilir misiniz?"},
+        {"zaman": "19.09.2026 10:35", "gonderen": "Ömer OCAK", "mesaj": "Tabii ki Mehmet Bey, hemen inceliyorum."}
+    ]
+
 # --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ ---
 if "gecmis_ozetler" not in st.session_state:
     st.session_state["gecmis_ozetler"] = [
@@ -278,16 +285,15 @@ st.markdown("---")
 df = load_data()
 
 if user["role"] == "admin":
-    tab1, tab2, tab3, tab4 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Rapor", "📁 Geçmiş Dönem Manuel Veriler"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["➕ Yeni Kayıp Zaman Kaydı Ekle", "📊 Kayıt Yönetimi (Düzenle & Sil)", "📈 Analiz & Rapor", "📁 Geçmiş Dönem Manuel Veriler", "💬 Canlı Soru & Sohbet"])
 else:
-    tab2, tab3, tab4 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & Rapor", "📁 Geçmiş Dönem Manuel Veriler"])
+    tab2, tab3, tab4, tab5 = st.tabs(["📊 Kayıt Listesi (Salt Okunur)", "📈 Analiz & Rapor", "📁 Geçmiş Dönem Manuel Veriler", "💬 Canlı Soru & Sohbet"])
 
 # ---------------- TAB 1: FORM ----------------
 if user["role"] == "admin":
     with tab1:
         st.subheader("Referans Bazlı Kayıp Zaman Kayıt Formu")
         
-        # Formun başında iki ana bölüm seçimi
         kayip_zaman_turu = st.radio(
             "📌 Kayıp Zaman / İşlem Kategorisi Seçin *",
             options=KAYIP_ZAMAN_TURU_OPSIYONLARI,
@@ -796,3 +802,53 @@ with tab4:
         st.session_state["gecmis_ozetler"] = gecmis_df_editable.to_dict(orient="records")
         st.success("Geçmiş 7 aylık dönem verileri başarıyla güncellendi ve kümülatif hesaplamalara yansıtıldı!")
         st.rerun()
+
+# ---------------- TAB 5: CANLI SORU & SOHBET ----------------
+with tab5:
+    st.subheader("💬 Canlı İletişim & Soru-Cevap Paneli")
+    st.markdown("Ömer OCAK ve Mehmet ALAŞAR arasında operasyonel soru, talep ve notların iletildiği canlı mesajlaşma alanıdır.")
+    st.markdown("---")
+    
+    # Sohbet geçmişini göster
+    chat_container = st.container(height=400)
+    with chat_container:
+        if not st.session_state["chat_messages"]:
+            st.info("Henüz mesaj yazılmamış. İlk mesajı siz gönderin!")
+        else:
+            for m in st.session_state["chat_messages"]:
+                gonderen = m["gonderen"]
+                zaman = m["zaman"]
+                mesaj = m["mesaj"]
+                
+                if gonderen == user["name"]:
+                    st.markdown(f"""
+                    <div style="background-color: #e3f2fd; padding: 10px 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #1f77b4;">
+                        <strong>Siz ({gonderen})</strong> <span style="font-size: 11px; color: gray; float: right;">{zaman}</span><br>
+                        <p style="margin: 5px 0 0 0; color: #333;">{mesaj}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div style="background-color: #f1f8e9; padding: 10px 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #2ca02c;">
+                        <strong>{gonderen}</strong> <span style="font-size: 11px; color: gray; float: right;">{zaman}</span><br>
+                        <p style="margin: 5px 0 0 0; color: #333;">{mesaj}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+    # Mesaj gönderme formu
+    with st.form("chat_form", clear_on_submit=True):
+        yeni_mesaj = st.text_area("Mesajınızı veya sorunuzu yazın...", placeholder="Örn: Mehmet Bey, Eylül ayı onay belgeleri hakkında...")
+        btn_gonder = st.form_submit_button("📨 Mesaj Gönder", use_container_width=True)
+        
+        if btn_gonder:
+            if not yeni_mesaj.strip():
+                st.warning("Boş mesaj gönderilemez!")
+            else:
+                zaman_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+                st.session_state["chat_messages"].append({
+                    "zaman": zaman_str,
+                    "gonderen": user["name"],
+                    "mesaj": yeni_mesaj.strip()
+                })
+                st.success("Mesajınız iletildi!")
+                st.rerun()
