@@ -211,80 +211,53 @@ if "odeme_kayitlari" not in st.session_state:
         }
     ]
 
-# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ (YENİ FİNANSAL ALANLAR EKLENDİ) ---
+# --- GEÇMİŞ 7 AY MANUEL ÖZET VERİLERİ (GÜVENLİ BAŞLATMA) ---
 if "gecmis_ozetler" not in st.session_state:
     st.session_state["gecmis_ozetler"] = [
         {
-            "Dönem": "Şubat 2026", 
-            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
-            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, 
-            "Onaylanan Tutar (TL)": 0.0, 
-            "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Süreç başlangıcı", 
-            "Genel Açıklama": "Başlangıç"
+            "Dönem": "Şubat 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Süreç başlangıcı", "Genel Açıklama": "Başlangıç"
         },
         {
-            "Dönem": "Mart 2026", 
-            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
-            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, 
-            "Onaylanan Tutar (TL)": 0.0, 
-            "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", 
-            "Genel Açıklama": "Beklemede"
+            "Dönem": "Mart 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
-            "Dönem": "Nisan 2026", 
-            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
-            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, 
-            "Onaylanan Tutar (TL)": 0.0, 
-            "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", 
-            "Genel Açıklama": "Beklemede"
+            "Dönem": "Nisan 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
-            "Dönem": "Mayıs 2026", 
-            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
-            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, 
-            "Onaylanan Tutar (TL)": 0.0, 
-            "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", 
-            "Genel Açıklama": "Beklemede"
+            "Dönem": "Mayıs 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
-            "Dönem": "Haziran 2026", 
-            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
-            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, 
-            "Onaylanan Tutar (TL)": 0.0, 
-            "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", 
-            "Genel Açıklama": "Beklemede"
+            "Dönem": "Haziran 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
-            "Dönem": "Temmuz 2026", 
-            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
-            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, 
-            "Onaylanan Tutar (TL)": 0.0, 
-            "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", 
-            "Genel Açıklama": "Beklemede"
+            "Dönem": "Temmuz 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         },
         {
-            "Dönem": "Ağustos 2026", 
-            "Talep Edilen Kayıp Zaman (Saat)": 0.0, 
-            "Onaylanan Kayıp Zaman (Saat)": 0.0, 
-            "Talep Edilen Tutar (TL)": 0.0, 
-            "Onaylanan Tutar (TL)": 0.0, 
-            "Legrand Kesinti Tutarı (TL)": 0.0, 
-            "Kesinti Açıklaması": "Veri bekleniyor", 
-            "Genel Açıklama": "Beklemede"
+            "Dönem": "Ağustos 2026", "Talep Edilen Kayıp Zaman (Saat)": 0.0, "Onaylanan Kayıp Zaman (Saat)": 0.0, 
+            "Talep Edilen Tutar (TL)": 0.0, "Onaylanan Tutar (TL)": 0.0, "Legrand Kesinti Tutarı (TL)": 0.0, 
+            "Kesinti Açıklaması": "Veri bekleniyor", "Genel Açıklama": "Beklemede"
         }
     ]
+else:
+    # Eski session kalıntılarında yeni alanlar eksikse hata almamak için tamamla
+    for row in st.session_state["gecmis_ozetler"]:
+        if "Talep Edilen Tutar (TL)" not in row: row["Talep Edilen Tutar (TL)"] = 0.0
+        if "Onaylanan Tutar (TL)" not in row: row["Onaylanan Tutar (TL)"] = 0.0
+        if "Legrand Kesinti Tutarı (TL)" not in row: row["Legrand Kesinti Tutarı (TL)"] = 0.0
+        if "Kesinti Açıklaması" not in row: row["Kesinti Açıklaması"] = ""
+        if "Genel Açıklama" not in row: row["Genel Açıklama"] = ""
 
 def format_para(tutar, birim):
     try:
@@ -613,7 +586,7 @@ with tab3:
     tz1.metric("Toplam Talep Edilen Kayıp Zaman", f"{aktif_talep + m_talep:.2f} Saat")
     tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
-    # YENİ EKLENEN MANUEL FİNANSAL ÖZET METRİKLERİ
+    # MANUEL FİNANSAL ÖZET METRİKLERİ
     st.markdown("### 💼 Geçmiş Dönem Finansal & Kesinti Kümülatif Özeti")
     m_talep_tutar = pd.to_numeric(manuel_df['Talep Edilen Tutar (TL)'], errors='coerce').sum()
     m_onay_tutar = pd.to_numeric(manuel_df['Onaylanan Tutar (TL)'], errors='coerce').sum()
