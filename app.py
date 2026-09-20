@@ -428,10 +428,23 @@ with tab1:
             
         with col_f2:
             gelen_parti = st.number_input("Gelen Parti / Stok Miktarı (Adet)", min_value=1, value=14000, step=10, key="f_parti")
-            hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=100.0, step=0.5, key="f_hata")
+            
+            # Duruş nedenine göre hata oranı alanını dinamik yönetme
+            is_ayiklama = ("Ayıklama" in durus_nedeni)
+            if is_ayiklama:
+                hata_orani = 100.0
+                st.caption("ℹ️ 'Ayıklama' işlemi seçildiği için hata oranı %100 kabul edilerek direkt adet üzerinden hesaplama yapılır.")
+            else:
+                hata_orani = st.number_input("Hata Oranı (%)", min_value=0.0, max_value=100.0, value=100.0, step=0.5, key="f_hata")
+                
             ph = st.number_input("P/H (Parça / Saat)", min_value=0.1, value=520.0, step=1.0, key="f_ph")
             
-            canli_islem_adet = gelen_parti * (hata_orani / 100.0)
+            # Hesaplama Mantığı: Ayıklama ise direkt Adet / PH, değilse hata oranına göre adet * hata_orani / PH
+            if is_ayiklama:
+                canli_islem_adet = float(gelen_parti)
+            else:
+                canli_islem_adet = gelen_parti * (hata_orani / 100.0)
+                
             canli_hesaplanan_saat = round(canli_islem_adet / ph, 2) if ph > 0 else 0.0
             
             st.markdown("---")
@@ -453,7 +466,7 @@ with tab1:
                 )
             else:
                 hesaplanan_zaman = canli_hesaplanan_saat
-                st.success(f"⏱️ **Hesaplanan Zaman: {hesaplanan_zaman:.2f} Saat**  \n*(Detay: {int(canli_islem_adet)} Adet Hatalı Parça / {ph} P/H)*")
+                st.success(f"⏱️ **Hesaplanan Zaman: {hesaplanan_zaman:.2f} Saat**  \n*(Detay: {int(canli_islem_adet)} Adet İşlem / {ph} P/H)*")
                 
             st.markdown("---")
             kayip_zaman_saat = st.number_input("Kayıp Zaman / Fiili Duruş (Saat) *", min_value=0.0, value=26.92, step=0.1, format="%.2f", key="f_kayip")
@@ -500,7 +513,7 @@ with tab1:
                     "Duruş Nedeni": durus_nedeni,
                     "İşlem Açıklaması": islem_aciklamasi,
                     "Gelen Parti Miktarı": gelen_parti,
-                    "Hata Oranı (%)": float(hata_orani),
+                    "Hata Oranı (%)": float(100.0 if is_ayiklama else hata_orani),
                     "P/H": float(ph),
                     "Hesaplanan Zaman (Saat)": round(float(hesaplanan_zaman), 2),
                     "Kayıp Zaman (Saat)": round(float(kayip_zaman_saat), 2),
@@ -523,7 +536,6 @@ with tab1:
         
         gecmis_liste = st.session_state["gecmis_ozetler"]
         
-        # Seçilen dönemin onaylanan tutarından kesinti tutarı düşüldükten sonraki net tutar hesaplanır
         donem_secenekleri = []
         for item in gecmis_liste:
             if isinstance(item, dict) and item.get('DÖNEM'):
@@ -707,12 +719,10 @@ with tab3:
     ft2.metric("Geçmiş Toplam Onaylanan Tutar", f"{m_onay_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
     ft3.metric("Geçmiş Toplam Kesinti Tutarı", f"{m_kesinti_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
     
-    # Yönetim Kadrosu (Ömer, Mehmet, Hakan, Dilber) ve Muhasebe için ek ödeme göstergeleri
     if user["role"] in ["admin", "accounting"] or user["name"] in ["Mehmet ALAŞAR", "Dilber ALAŞAR", "Hakan ALAŞAR"]:
         st.markdown("---")
         st.markdown("### 💵 Finansal Tahsilat & Gerçekleşme Göstergeleri")
         
-        # Gelen toplam ödeme hesaplaması
         toplam_gelen_odeme = 0.0
         if not odeme_analiz_df.empty:
             if "ÖDEME DURUMU" not in odeme_analiz_df.columns:
@@ -724,7 +734,6 @@ with tab3:
                     pb = str(r.get("PARA BİRİMİ", "TL"))
                     toplam_gelen_odeme += (t if "TL" in pb else t * k)
         
-        # Kesintiler düşüldükten sonra net onaylanan tutar
         net_onaylanan_tutar = max(0.0, m_onay_tutar - m_kesinti_tutar)
         tahsilat_orani = (toplam_gelen_odeme / net_onaylanan_tutar * 100.0) if net_onaylanan_tutar > 0 else 0.0
         
