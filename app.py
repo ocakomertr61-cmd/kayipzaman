@@ -66,7 +66,7 @@ def get_gspread_client():
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
 
-# --- VERİ ÇEKME FONKSİYONLARI (Kotayı korumak için optimize edildi) ---
+# --- VERİ ÇEKME FONKSİYONLARI (Kotayı Korumak İçin Optimize Edildi) ---
 def fetch_main_data_from_sheet():
     try:
         client = get_gspread_client()
@@ -87,9 +87,13 @@ def fetch_main_data_from_sheet():
         df = df[SUTUNLAR]
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
+        # Sayısal dönüşüm ve ondalık basamak kayması düzeltmesi
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H', 'Saatlik İşçilik Ücreti (TL)', 'Toplam Tutar (TL)']:
             if num_col in df.columns:
-                s = df[num_col].astype(str).str.strip().str.replace(',', '', regex=False).str.replace('.', '', regex=False)
+                s = df[num_col].astype(str).str.strip()
+                s = s.str.replace('.', '', regex=False)  # Binlik noktaları kaldır
+                s = s.str.replace(',', '.', regex=False)  # Virgülü noktaya çevir
+                
                 numeric_vals = pd.to_numeric(s, errors='coerce').fillna(0.0) / (100.0 if '%' in num_col else 1.0)
                 df[num_col] = numeric_vals.round(2)
         
@@ -279,7 +283,7 @@ if "chat_messages" not in st.session_state:
         {"zaman": "19.09.2026 10:30", "gonderen": "Mehmet ALAŞAR", "mesaj": "Ömer Bey, eylül ayı raporunu kontrol edebilir misiniz?", "dosya_linki": ""}
     ]
 
-# --- SESSION STATE VERİ YÜKLEME (API Kotasını Korumak İçin Bir Kez Yüklenir) ---
+# --- SESSION STATE VERİ YÜKLEME ---
 if "main_df" not in st.session_state:
     st.session_state["main_df"] = fetch_main_data_from_sheet()
 
