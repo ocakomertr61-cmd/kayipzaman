@@ -135,13 +135,11 @@ def update_google_sheet(df):
         return False
 
 def parse_float_tr(val):
-    """Metin veya sayısal gelen değerleri Türkçe/İngilizce format fark etmeksizin güvenle float'a çevirir."""
     if val is None or val == "":
         return 0.0
     if isinstance(val, (int, float)):
         return float(val)
     val_str = str(val).strip()
-    # Eğer binlik nokta ve ondalık virgül varsa (örn. 1.234,56)
     if "," in val_str and "." in val_str:
         if val_str.find('.') < val_str.find(','):
             val_str = val_str.replace('.', '').replace(',', '.')
@@ -532,7 +530,7 @@ with tab1:
         if "muh_secilen_donem_str" not in st.session_state:
             st.session_state["muh_secilen_donem_str"] = donem_secenekleri[0]
 
-        secilen_donem_str = st.selectbox("Dönem and Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
+        secilen_donem_str = st.selectbox("Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
         
         secilen_donem_adi = secilen_donem_str.split(" — ")[0]
         secilen_item = next((item for item in gecmis_liste if item.get("DÖNEM") == secilen_donem_adi), None)
@@ -741,26 +739,29 @@ with tab3:
 # ---------------- TAB 4: GEÇMİŞ DÖNEM ----------------
 with tab4:
     st.subheader("📁 Geçmiş Dönem Manuel Özet Veriler (`gecmisdonem`)")
+    
+    # DataFrame oluşturulurken kolon adlarının GECMIS_SUTUNLAR ile birebir eşleşmesi sağlanır
     gecmis_temp_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
     for col in GECMIS_SUTUNLAR:
         if col not in gecmis_temp_df.columns:
             gecmis_temp_df[col] = 0.0 if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
             
+    gecmis_temp_df = gecmis_temp_df[GECMIS_SUTUNLAR]
+            
     is_admin = (user["role"] == "admin")
     
     if is_admin:
-        # Küsürat ve virgül/nokta sıkıntısını aşmak için saat ve ücret alanlarını metin sütunu olarak düzenliyoruz
         gecmis_df_editable = st.data_editor(
             gecmis_temp_df,
             column_config={
                 "ID": st.column_config.NumberColumn("ID", disabled=True),
                 "DÖNEM": st.column_config.TextColumn("DÖNEM", disabled=True),
-                "TALEP EDİLEN SAAT": st.column_config.TextColumn("TALEP EDİLEN SAAT (Örn: 26,92)"),
-                "ONAYLANAN SAAT": st.column_config.TextColumn("ONAYLANAN SAAT (Örn: 20,50)"),
-                "SAATLİK ÜCRET": st.column_config.TextColumn("SAATLİK ÜCRET (Örn: 500)"),
+                "TALEP EDİLEN SAAT": st.column_config.TextColumn("TALEP EDİLEN SAAT"),
+                "ONAYLANAN SAAT": st.column_config.TextColumn("ONAYLANAN SAAT"),
+                "SAATLİK ÜCRET": st.column_config.TextColumn("SAATLİK ÜCRET"),
                 "TALEP EDİLEN TUTAR": st.column_config.TextColumn("TALEP EDİLEN TUTAR", disabled=True),
                 "ONAYLANAN TUTAR": st.column_config.TextColumn("ONAYLANAN TUTAR", disabled=True),
-                "KESİNTİ TUTARI": st.column_config.TextColumn("KESİNTİ TUTARI (Örn: 0)"),
+                "KESİNTİ TUTARI": st.column_config.TextColumn("KESİNTİ TUTARI"),
                 "KESİNTİ AÇIKLAMASI": st.column_config.TextColumn("KESİNTİ AÇIKLAMASI"),
                 "GENEL AÇIKLAMA": st.column_config.TextColumn("GENEL AÇIKLAMA")
             },
@@ -775,16 +776,18 @@ with tab4:
                 t_saat = parse_float_tr(row_dict.get("TALEP EDİLEN SAAT", 0.0))
                 o_saat = parse_float_tr(row_dict.get("ONAYLANAN SAAT", 0.0))
                 s_ucret = parse_float_tr(row_dict.get("SAATLİK ÜCRET", 0.0))
+                kesinti = parse_float_tr(row_dict.get("KESİNTİ TUTARI", 0.0))
                 
                 row_dict["TALEP EDİLEN SAAT"] = t_saat
                 row_dict["ONAYLANAN SAAT"] = o_saat
                 row_dict["SAATLİK ÜCRET"] = s_ucret
+                row_dict["KESİNTİ TUTARI"] = kesinti
                 row_dict["TALEP EDİLEN TUTAR"] = round(t_saat * s_ucret, 2)
                 row_dict["ONAYLANAN TUTAR"] = round(o_saat * s_ucret, 2)
                 updated_records.append(row_dict)
                 
             if update_gecmis_google_sheet(updated_records):
-                st.success("Geçmiş dönem verileriniz ve hesaplamalarınız başarıyla Google Sheets'e kaydedildi!")
+                st.success("Geçmiş dönem verileriniz başarıyla Google Sheets'e kaydedildi!")
                 st.rerun()
     else:
         st.info("ℹ️ Geçmiş dönem verilerini yalnızca **Yönetici (Ömer OCAK)** düzenleyebilir veya silebilir. Bu sayfayı şu an salt okunur olarak görüntülemektesiniz.")
@@ -891,6 +894,7 @@ with tab6:
                 yeni_odemeler = [item for item in mevcut_odemeler if parse_float_tr(item.get("ID")) != silinecek_odeme_id]
                 if len(yeni_odemeler) < len(mevcut_odemeler):
                     if update_odeme_google_sheet(yeni_odemeler):
+                        st.session_state["odeme_kayitlari"] = yeni_odemeler
                         st.success(f"ID #{silinecek_odeme_id} numaralı ödeme kaydı silindi!")
                         st.rerun()
                 else:
