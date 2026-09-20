@@ -171,7 +171,9 @@ def fetch_gecmis_from_sheet():
             
         for col in GECMIS_SUTUNLAR:
             if col not in df.columns:
-                df[col] = 0.0 if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
+                df[col] = "0" if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
+            else:
+                df[col] = df[col].astype(str).replace(["nan", "None"], "0")
         df = df[GECMIS_SUTUNLAR]
         return df.to_dict(orient="records")
     except Exception:
@@ -229,6 +231,8 @@ def fetch_odeme_from_sheet():
         for col in ODEME_SUTUNLAR:
             if col not in df.columns:
                 df[col] = ""
+            else:
+                df[col] = df[col].astype(str).replace(["nan", "None"], "0")
         df = df[ODEME_SUTUNLAR]
         return df.to_dict(orient="records")
     except Exception:
@@ -740,11 +744,12 @@ with tab3:
 with tab4:
     st.subheader("📁 Geçmiş Dönem Manuel Özet Veriler (`gecmisdonem`)")
     
-    # DataFrame oluşturulurken kolon adlarının GECMIS_SUTUNLAR ile birebir eşleşmesi sağlanır
     gecmis_temp_df = pd.DataFrame(st.session_state["gecmis_ozetler"])
     for col in GECMIS_SUTUNLAR:
         if col not in gecmis_temp_df.columns:
-            gecmis_temp_df[col] = 0.0 if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
+            gecmis_temp_df[col] = "0" if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
+        else:
+            gecmis_temp_df[col] = gecmis_temp_df[col].astype(str).replace(["nan", "None"], "0")
             
     gecmis_temp_df = gecmis_temp_df[GECMIS_SUTUNLAR]
             
