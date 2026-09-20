@@ -726,38 +726,45 @@ with tab4:
         if col not in gecmis_temp_df.columns:
             gecmis_temp_df[col] = 0.0 if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
             
-    gecmis_df_editable = st.data_editor(
-        gecmis_temp_df,
-        column_config={
-            "ID": st.column_config.NumberColumn("ID", disabled=True),
-            "DÖNEM": st.column_config.TextColumn("DÖNEM", disabled=True),
-            "TALEP EDİLEN SAAT": st.column_config.NumberColumn("TALEP EDİLEN SAAT", format="%.2f"),
-            "ONAYLANAN SAAT": st.column_config.NumberColumn("ONAYLANAN SAAT", format="%.2f"),
-            "SAATLİK ÜCRET": st.column_config.NumberColumn("SAATLİK ÜCRET", format="%.2f"),
-            "TALEP EDİLEN TUTAR": st.column_config.NumberColumn("TALEP EDİLEN TUTAR", format="%.2f"),
-            "ONAYLANAN TUTAR": st.column_config.NumberColumn("ONAYLANAN TUTAR", format="%.2f"),
-            "KESİNTİ TUTARI": st.column_config.NumberColumn("KESİNTİ TUTARI", format="%.2f"),
-            "KESİNTİ AÇIKLAMASI": st.column_config.TextColumn("KESİNTİ AÇIKLAMASI"),
-            "GENEL AÇıklama": st.column_config.TextColumn("GENEL AÇıklama")
-        },
-        use_container_width=True,
-        key="gecmis_editor_final"
-    )
+    # Yalnızca admin (Ömer OCAK) düzenleyebilir, diğer roller salt okunur görür
+    is_admin = (user["role"] == "admin")
     
-    if st.button("🔄 Saatleri Saatlik Ücretle Çarp & Sheets'e Kaydet", use_container_width=True, type="primary"):
-        updated_records = []
-        for index, row in gecmis_df_editable.iterrows():
-            t_saat = float(row.get("TALEP EDİLEN SAAT", 0.0) or 0.0)
-            o_saat = float(row.get("ONAYLANAN SAAT", 0.0) or 0.0)
-            s_ucret = float(row.get("SAATLİK ÜCRET", 0.0) or 0.0)
-            
-            row["TALEP EDİLEN TUTAR"] = round(t_saat * s_ucret, 2)
-            row["ONAYLANAN TUTAR"] = round(o_saat * s_ucret, 2)
-            updated_records.append(row.to_dict())
-            
-        if update_gecmis_google_sheet(updated_records):
-            st.success("Geçmiş dönem verileriniz başarıyla Google Sheets'e kaydedildi!")
-            st.rerun()
+    if is_admin:
+        gecmis_df_editable = st.data_editor(
+            gecmis_temp_df,
+            column_config={
+                "ID": st.column_config.NumberColumn("ID", disabled=True),
+                "DÖNEM": st.column_config.TextColumn("DÖNEM", disabled=True),
+                "TALEP EDİLEN SAAT": st.column_config.NumberColumn("TALEP EDİLEN SAAT", format="%.2f"),
+                "ONAYLANAN SAAT": st.column_config.NumberColumn("ONAYLANAN SAAT", format="%.2f"),
+                "SAATLİK ÜCRET": st.column_config.NumberColumn("SAATLİK ÜCRET", format="%.2f"),
+                "TALEP EDİLEN TUTAR": st.column_config.NumberColumn("TALEP EDİLEN TUTAR", format="%.2f"),
+                "ONAYLANAN TUTAR": st.column_config.NumberColumn("ONAYLANAN TUTAR", format="%.2f"),
+                "KESİNTİ TUTARI": st.column_config.NumberColumn("KESİNTİ TUTARI", format="%.2f"),
+                "KESİNTİ AÇIKLAMASI": st.column_config.TextColumn("KESİNTİ AÇIKLAMASI"),
+                "GENEL AÇıklama": st.column_config.TextColumn("GENEL AÇıklama")
+            },
+            use_container_width=True,
+            key="gecmis_editor_final"
+        )
+        
+        if st.button("🔄 Saatleri Saatlik Ücretle Çarp & Sheets'e Kaydet", use_container_width=True, type="primary"):
+            updated_records = []
+            for index, row in gecmis_df_editable.iterrows():
+                t_saat = float(row.get("TALEP EDİLEN SAAT", 0.0) or 0.0)
+                o_saat = float(row.get("ONAYLANAN SAAT", 0.0) or 0.0)
+                s_ucret = float(row.get("SAATLİK ÜCRET", 0.0) or 0.0)
+                
+                row["TALEP EDİLEN TUTAR"] = round(t_saat * s_ucret, 2)
+                row["ONAYLANAN TUTAR"] = round(o_saat * s_ucret, 2)
+                updated_records.append(row.to_dict())
+                
+            if update_gecmis_google_sheet(updated_records):
+                st.success("Geçmiş dönem verileriniz başarıyla Google Sheets'e kaydedildi!")
+                st.rerun()
+    else:
+        st.info("ℹ️ Geçmiş dönem verilerini yalnızca **Yönetici (Ömer OCAK)** düzenleyebilir veya silebilir. Bu sayfayı şu an salt okunur olarak görüntülemektesiniz.")
+        st.dataframe(gecmis_temp_df, use_container_width=True)
 
 # ---------------- TAB 5: SOHBET ----------------
 with tab5:
