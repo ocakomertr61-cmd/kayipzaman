@@ -522,25 +522,38 @@ with tab1:
         st.subheader("💰 Müşteri Ödemesi / Tahsilat Girişi")
         
         gecmis_liste = st.session_state["gecmis_ozetler"]
-        donem_secenekleri = [
-            f"{item.get('DÖNEM', '')} — Onaylanan Tutar: {parse_float_tr(item.get('ONAYLANAN TUTAR', 0)):,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") 
-            for item in gecmis_liste 
-            if isinstance(item, dict) and item.get('DÖNEM')
-        ]
+        
+        # Seçilen dönemin onaylanan tutarından kesinti tutarı düşüldükten sonraki net tutar hesaplanır
+        donem_secenekleri = []
+        for item in gecmis_liste:
+            if isinstance(item, dict) and item.get('DÖNEM'):
+                donem_adi = item.get('DÖNEM')
+                onaylanan_tutar = parse_float_tr(item.get('ONAYLANAN TUTAR', 0))
+                kesinti_tutar = parse_float_tr(item.get('KESİNTİ TUTARI', 0))
+                net_tutar = max(0.0, onaylanan_tutar - kesinti_tutar)
+                
+                tutar_str = f"{net_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".")
+                donem_secenekleri.append(f"{donem_adi} — Net Alacak Tutar: {tutar_str}")
         
         if not donem_secenekleri:
-            donem_secenekleri = ["Eylül 2026 — Onaylanan Tutar: 0,00 TL"]
+            donem_secenekleri = ["Eylül 2026 — Net Alacak Tutar: 0,00 TL"]
 
         if "muh_secilen_donem_str" not in st.session_state:
             st.session_state["muh_secilen_donem_str"] = donem_secenekleri[0]
 
-        secilen_donem_str = st.selectbox("Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
+        secilen_donem_str = st.selectbox("Dönem ve Net Alacak Tutarları *", options=donem_secenekleri, key="muh_secilen_donem_str")
         
         secilen_donem_adi = secilen_donem_str.split(" — ")[0]
         secilen_item = next((item for item in gecmis_liste if item.get("DÖNEM") == secilen_donem_adi), None)
-        varsayilan_onaylanan_tutar = parse_float_tr(secilen_item.get("ONAYLANAN TUTAR", 0.0)) if secilen_item else 0.0
         
-        farkli_tutar_var_mi = st.checkbox("Gelen tutar onaylanan tutardan farklı mı?", key="muh_farkli_tutar_check")
+        if secilen_item:
+            onaylanan_tutar = parse_float_tr(secilen_item.get("ONAYLANAN TUTAR", 0.0))
+            kesinti_tutar = parse_float_tr(secilen_item.get("KESİNTİ TUTARI", 0.0))
+            varsayilan_net_tutar = max(0.0, onaylanan_tutar - kesinti_tutar)
+        else:
+            varsayilan_net_tutar = 0.0
+        
+        farkli_tutar_var_mi = st.checkbox("Gelen tutar net alacak tutarından farklı mı?", key="muh_farkli_tutar_check")
         
         with st.form("muhasebe_odeme_form", clear_on_submit=True):
             col_m1, col_m2 = st.columns(2)
@@ -551,9 +564,9 @@ with tab1:
                 
             with col_m2:
                 if farkli_tutar_var_mi:
-                    muh_tutar = st.number_input("Gerçekleşen / Gelen Özel Tutar *", min_value=0.0, value=float(varsayilan_onaylanan_tutar), step=100.0, format="%.2f", key="muh_ozel_tutar")
+                    muh_tutar = st.number_input("Gerçekleşen / Gelen Özel Tutar *", min_value=0.0, value=float(varsayilan_net_tutar), step=100.0, format="%.2f", key="muh_ozel_tutar")
                 else:
-                    muh_tutar = float(varsayilan_onaylanan_tutar)
+                    muh_tutar = float(varsayilan_net_tutar)
                     
                 muh_kur = st.number_input("TCMB Kur / Çevrim Çarpanı", min_value=0.0001, value=1.0 if "TL" in muh_para_birimi else 35.0, step=0.01, format="%.4f", key="muh_kur_val")
             
@@ -694,6 +707,31 @@ with tab3:
     ft2.metric("Geçmiş Toplam Onaylanan Tutar", f"{m_onay_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
     ft3.metric("Geçmiş Toplam Kesinti Tutarı", f"{m_kesinti_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
     
+    # Yönetim Kadrosu (Ömer, Mehmet, Hakan, Dilber) ve Muhasebe için ek ödeme göstergeleri
+    if user["role"] in ["admin", "accounting"] or user["name"] in ["Mehmet ALAŞAR", "Dilber ALAŞAR", "Hakan ALAŞAR"]:
+        st.markdown("---")
+        st.markdown("### 💵 Finansal Tahsilat & Gerçekleşme Göstergeleri")
+        
+        # Gelen toplam ödeme hesaplaması
+        toplam_gelen_odeme = 0.0
+        if not odeme_analiz_df.empty:
+            if "ÖDEME DURUMU" not in odeme_analiz_df.columns:
+                odeme_analiz_df["ÖDEME DURUMU"] = "Gelen Ödeme"
+            for _, r in odeme_analiz_df.iterrows():
+                if str(r.get("ÖDEME DURUMU", "")) == "Gelen Ödeme":
+                    t = parse_float_tr(r.get("GERÇEKLEŞEN GELEN ÖZEL TUTAR", 0.0))
+                    k = parse_float_tr(r.get("TCBM KUR", 1.0))
+                    pb = str(r.get("PARA BİRİMİ", "TL"))
+                    toplam_gelen_odeme += (t if "TL" in pb else t * k)
+        
+        # Kesintiler düşüldükten sonra net onaylanan tutar
+        net_onaylanan_tutar = max(0.0, m_onay_tutar - m_kesinti_tutar)
+        tahsilat_orani = (toplam_gelen_odeme / net_onaylanan_tutar * 100.0) if net_onaylanan_tutar > 0 else 0.0
+        
+        g_col1, g_col2 = st.columns(2)
+        g_col1.metric("Muhasebeye Gelen Toplam Ödeme", f"{toplam_gelen_odeme:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
+        g_col2.metric("Onaylanan Tutar ile Gelen Ödemenin Karşılığı (%)", f"%{tahsilat_orani:.2f}".replace(".", ","))
+
     st.markdown("---")
     st.markdown("### 💰 Finansal Ödeme Analizi")
     
