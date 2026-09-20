@@ -66,7 +66,7 @@ def get_gspread_client():
         st.error(f"Kimlik doğrulama hatası: {e}")
         return None
 
-# --- VERİ ÇEKME FONKSİYONLARI (Kotayı Korumak İçin Optimize Edildi) ---
+# --- VERİ ÇEKME FONKSİYONLARI ---
 def fetch_main_data_from_sheet():
     try:
         client = get_gspread_client()
@@ -87,12 +87,11 @@ def fetch_main_data_from_sheet():
         df = df[SUTUNLAR]
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
         
-        # Sayısal dönüşüm ve ondalık basamak kayması düzeltmesi
         for num_col in ['Kayıp Zaman (Saat)', 'Hesaplanan Zaman (Saat)', 'Hata Oranı (%)', 'P/H', 'Saatlik İşçilik Ücreti (TL)', 'Toplam Tutar (TL)']:
             if num_col in df.columns:
                 s = df[num_col].astype(str).str.strip()
-                s = s.str.replace('.', '', regex=False)  # Binlik noktaları kaldır
-                s = s.str.replace(',', '.', regex=False)  # Virgülü noktaya çevir
+                s = s.str.replace('.', '', regex=False)
+                s = s.str.replace(',', '.', regex=False)
                 
                 numeric_vals = pd.to_numeric(s, errors='coerce').fillna(0.0) / (100.0 if '%' in num_col else 1.0)
                 df[num_col] = numeric_vals.round(2)
@@ -136,16 +135,6 @@ def update_google_sheet(df):
         return False
 
 def fetch_gecmis_from_sheet():
-    varsayilan_liste = [
-        {"ID": 1, "DÖNEM": "Şubat 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Süreç başlangıcı", "GENEL AÇıklama": "Başlangıç"},
-        {"ID": 2, "DÖNEM": "Mart 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
-        {"ID": 3, "DÖNEM": "Nisan 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
-        {"ID": 4, "DÖNEM": "Mayıs 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
-        {"ID": 5, "DÖNEM": "Haziran 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
-        {"ID": 6, "DÖNEM": "Temmuz 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
-        {"ID": 7, "DÖNEM": "Ağustos 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Veri bekleniyor", "GENEL AÇıklama": "Beklemede"},
-        {"ID": 8, "DÖNEM": "Eylül 2026", "TALEP EDİLEN SAAT": 0.0, "ONAYLANAN SAAT": 0.0, "SAATLİK ÜCRET": 500.0, "TALEP EDİLEN TUTAR": 0.0, "ONAYLANAN TUTAR": 0.0, "KESİNTİ TUTARI": 0.0, "KESİNTİ AÇIKLAMASI": "Yok", "GENEL AÇıklama": "Aktif Dönem"}
-    ]
     try:
         client = get_gspread_client()
         if client:
@@ -156,11 +145,11 @@ def fetch_gecmis_from_sheet():
                 data = [row for row in data if row.get("ID") != "" and row.get("ID") is not None]
                 df = pd.DataFrame(data)
                 if df.empty:
-                    df = pd.DataFrame(varsayilan_liste)
+                    return []
             except:
-                df = pd.DataFrame(varsayilan_liste)
+                return []
         else:
-            df = pd.DataFrame(varsayilan_liste)
+            return []
             
         for col in GECMIS_SUTUNLAR:
             if col not in df.columns:
@@ -168,7 +157,7 @@ def fetch_gecmis_from_sheet():
         df = df[GECMIS_SUTUNLAR]
         return df.to_dict(orient="records")
     except Exception:
-        return varsayilan_liste
+        return []
 
 def update_gecmis_google_sheet(liste_veri):
     try:
@@ -194,7 +183,8 @@ def update_gecmis_google_sheet(liste_veri):
                 
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
-        worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
+        if not df_to_write.empty:
+            worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
         st.session_state["gecmis_ozetler"] = liste_veri
         return True
     except Exception as e:
@@ -202,10 +192,6 @@ def update_gecmis_google_sheet(liste_veri):
         return False
 
 def fetch_odeme_from_sheet():
-    varsayilan_odeme = [
-        {"ID": 1, "MÜŞTERİ ADI": "Legrand (Geçmiş Devir)", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇIKLAMA NOTLAR": "Şubat dönemi geçmiş devir ödemesi.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 120000.00},
-        {"ID": 2, "MÜŞTERİ ADI": "Legrand", "ÖDEME DURUMU": "Gelen Ödeme", "PARA BİRİMİ": "TL (₺)", "TCBM KUR": 1.0, "AÇIKLAMA NOTLAR": "Eylül ayı fatura tahsilatı alındı.", "GERÇEKLEŞEN GELEN ÖZEL TUTAR": 155252.00}
-    ]
     try:
         client = get_gspread_client()
         if client:
@@ -216,11 +202,11 @@ def fetch_odeme_from_sheet():
                 data = [row for row in data if row.get("ID") != "" and row.get("ID") is not None]
                 df = pd.DataFrame(data)
                 if df.empty:
-                    df = pd.DataFrame(varsayilan_odeme)
+                    return []
             except:
-                df = pd.DataFrame(varsayilan_odeme)
+                return []
         else:
-            df = pd.DataFrame(varsayilan_odeme)
+            return []
             
         for col in ODEME_SUTUNLAR:
             if col not in df.columns:
@@ -228,7 +214,7 @@ def fetch_odeme_from_sheet():
         df = df[ODEME_SUTUNLAR]
         return df.to_dict(orient="records")
     except Exception:
-        return varsayilan_odeme
+        return []
 
 def update_odeme_google_sheet(liste_veri):
     try:
@@ -253,7 +239,8 @@ def update_odeme_google_sheet(liste_veri):
             
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
-        worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
+        if not df_to_write.empty:
+            worksheet.update([df_to_write.columns.values.tolist()] + df_to_write.values.tolist())
         st.session_state["odeme_kayitlari"] = liste_veri
         return True
     except Exception as e:
