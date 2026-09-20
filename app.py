@@ -134,6 +134,26 @@ def update_google_sheet(df):
         st.error(f"Google Sheets güncelleme hatası: {e}")
         return False
 
+def parse_float_tr(val):
+    """Metin veya sayısal gelen değerleri Türkçe/İngilizce format fark etmeksizin güvenle float'a çevirir."""
+    if val is None or val == "":
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    val_str = str(val).strip()
+    # Eğer binlik nokta ve ondalık virgül varsa (örn. 1.234,56)
+    if "," in val_str and "." in val_str:
+        if val_str.find('.') < val_str.find(','):
+            val_str = val_str.replace('.', '').replace(',', '.')
+        else:
+            val_str = val_str.replace(',', '')
+    elif "," in val_str:
+        val_str = val_str.replace(',', '.')
+    try:
+        return float(val_str)
+    except:
+        return 0.0
+
 def fetch_gecmis_from_sheet():
     try:
         client = get_gspread_client()
@@ -178,8 +198,8 @@ def update_gecmis_google_sheet(liste_veri):
         
         for col in ["TALEP EDİLEN SAAT", "ONAYLANAN SAAT", "SAATLİK ÜCRET", "TALEP EDİLEN TUTAR", "ONAYLANAN TUTAR", "KESİNTİ TUTARI"]:
             if col in df_to_write.columns:
-                num_series = pd.to_numeric(df_to_write[col], errors='coerce').fillna(0.0).round(2)
-                df_to_write[col] = num_series.apply(lambda x: str(x).replace('.', ','))
+                num_series = df_to_write[col].apply(parse_float_tr).round(2)
+                df_to_write[col] = num_series.apply(lambda x: f"{x:.2f}".replace('.', ','))
                 
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
@@ -234,8 +254,8 @@ def update_odeme_google_sheet(liste_veri):
         df_to_write = df_to_write[ODEME_SUTUNLAR]
 
         if "GERÇEKLEŞEN GELEN ÖZEL TUTAR" in df_to_write.columns:
-            num_series = pd.to_numeric(df_to_write["GERÇEKLEŞEN GELEN ÖZEL TUTAR"], errors='coerce').fillna(0.0).round(2)
-            df_to_write["GERÇEKLEŞEN GELEN ÖZEL TUTAR"] = num_series.apply(lambda x: str(x).replace('.', ','))
+            num_series = df_to_write["GERÇEKLEŞEN GELEN ÖZEL TUTAR"].apply(parse_float_tr).round(2)
+            df_to_write["GERÇEKLEŞEN GELEN ÖZEL TUTAR"] = num_series.apply(lambda x: f"{x:.2f}".replace('.', ','))
             
         df_to_write = df_to_write.fillna("")
         worksheet.clear()
@@ -501,7 +521,7 @@ with tab1:
         
         gecmis_liste = st.session_state["gecmis_ozetler"]
         donem_secenekleri = [
-            f"{item.get('DÖNEM', '')} — Onaylanan Tutar: {float(item.get('ONAYLANAN TUTAR', 0) or 0):,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") 
+            f"{item.get('DÖNEM', '')} — Onaylanan Tutar: {parse_float_tr(item.get('ONAYLANAN TUTAR', 0)):,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".") 
             for item in gecmis_liste 
             if isinstance(item, dict) and item.get('DÖNEM')
         ]
@@ -512,11 +532,11 @@ with tab1:
         if "muh_secilen_donem_str" not in st.session_state:
             st.session_state["muh_secilen_donem_str"] = donem_secenekleri[0]
 
-        secilen_donem_str = st.selectbox("Dönem ve Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
+        secilen_donem_str = st.selectbox("Dönem and Onaylanan Tutarlar *", options=donem_secenekleri, key="muh_secilen_donem_str")
         
         secilen_donem_adi = secilen_donem_str.split(" — ")[0]
         secilen_item = next((item for item in gecmis_liste if item.get("DÖNEM") == secilen_donem_adi), None)
-        varsayilan_onaylanan_tutar = float(secilen_item.get("ONAYLANAN TUTAR", 0.0) or 0.0) if secilen_item else 0.0
+        varsayilan_onaylanan_tutar = parse_float_tr(secilen_item.get("ONAYLANAN TUTAR", 0.0)) if secilen_item else 0.0
         
         farkli_tutar_var_mi = st.checkbox("Gelen tutar onaylanan tutardan farklı mı?", key="muh_farkli_tutar_check")
         
@@ -544,7 +564,7 @@ with tab1:
                     st.error("Lütfen geçerli bir Müşteri Adı ve Tutar giriniz!")
                 else:
                     mevcut_odemeler = st.session_state["odeme_kayitlari"]
-                    yeni_odeme_id = max([item.get("ID", 0) for item in mevcut_odemeler]) + 1 if mevcut_odemeler else 1
+                    yeni_odeme_id = max([parse_float_tr(item.get("ID", 0)) for item in mevcut_odemeler]) + 1 if mevcut_odemeler else 1
 
                     yeni_kayit_dict = {
                         "ID": yeni_odeme_id,
@@ -654,8 +674,8 @@ with tab3:
     aktif_talep = pd.to_numeric(df['Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty and 'Hesaplanan Zaman (Saat)' in df.columns else 0.0
     aktif_onay = pd.to_numeric(df.loc[df['Son Durum'] == 'Onay Geldi', 'Hesaplanan Zaman (Saat)'], errors='coerce').sum() if not df.empty and 'Hesaplanan Zaman (Saat)' in df.columns else 0.0
     
-    m_talep = pd.to_numeric(manuel_df['TALEP EDİLEN SAAT'], errors='coerce').sum() if not manuel_df.empty else 0.0
-    m_onay = pd.to_numeric(manuel_df['ONAYLANAN SAAT'], errors='coerce').sum() if not manuel_df.empty else 0.0
+    m_talep = manuel_df['TALEP EDİLEN SAAT'].apply(parse_float_tr).sum() if not manuel_df.empty else 0.0
+    m_onay = manuel_df['ONAYLANAN SAAT'].apply(parse_float_tr).sum() if not manuel_df.empty else 0.0
     
     st.markdown("### 🌐 Kümülatif Zaman Özeti")
     tz1, tz2 = st.columns(2)
@@ -663,9 +683,9 @@ with tab3:
     tz2.metric("Toplam Onaylanan Kayıp Zaman", f"{aktif_onay + m_onay:.2f} Saat")
     
     st.markdown("### 💼 Geçmiş Dönem Finansal & Kesinti Özeti")
-    m_talep_tutar = pd.to_numeric(manuel_df['TALEP EDİLEN TUTAR'], errors='coerce').sum() if not manuel_df.empty else 0.0
-    m_onay_tutar = pd.to_numeric(manuel_df['ONAYLANAN TUTAR'], errors='coerce').sum() if not manuel_df.empty else 0.0
-    m_kesinti_tutar = pd.to_numeric(manuel_df['KESİNTİ TUTARI'], errors='coerce').sum() if not manuel_df.empty else 0.0
+    m_talep_tutar = manuel_df['TALEP EDİLEN TUTAR'].apply(parse_float_tr).sum() if not manuel_df.empty else 0.0
+    m_onay_tutar = manuel_df['ONAYLANAN TUTAR'].apply(parse_float_tr).sum() if not manuel_df.empty else 0.0
+    m_kesinti_tutar = manuel_df['KESİNTİ TUTARI'].apply(parse_float_tr).sum() if not manuel_df.empty else 0.0
     
     ft1, ft2, ft3 = st.columns(3)
     ft1.metric("Geçmiş Toplam Talep Edilen Tutar", f"{m_talep_tutar:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
@@ -680,8 +700,8 @@ with tab3:
             odeme_analiz_df["ÖDEME DURUMU"] = "Gelen Ödeme"
             
         def hesapla_tl_karsilik(row):
-            tutar = float(row.get("GERÇEKLEŞEN GELEN ÖZEL TUTAR", 0.0) or 0.0)
-            kur = float(row.get("TCBM KUR", 1.0) or 1.0)
+            tutar = parse_float_tr(row.get("GERÇEKLEŞEN GELEN ÖZEL TUTAR", 0.0))
+            kur = parse_float_tr(row.get("TCBM KUR", 1.0))
             pb = str(row.get("PARA BİRİMİ", "TL"))
             return tutar if "TL" in pb else tutar * kur
 
@@ -726,23 +746,23 @@ with tab4:
         if col not in gecmis_temp_df.columns:
             gecmis_temp_df[col] = 0.0 if "SAAT" in col or "TUTAR" in col or "ÜCRET" in col else ""
             
-    # Yalnızca admin (Ömer OCAK) düzenleyebilir, diğer roller salt okunur görür
     is_admin = (user["role"] == "admin")
     
     if is_admin:
+        # Küsürat ve virgül/nokta sıkıntısını aşmak için saat ve ücret alanlarını metin sütunu olarak düzenliyoruz
         gecmis_df_editable = st.data_editor(
             gecmis_temp_df,
             column_config={
                 "ID": st.column_config.NumberColumn("ID", disabled=True),
                 "DÖNEM": st.column_config.TextColumn("DÖNEM", disabled=True),
-                "TALEP EDİLEN SAAT": st.column_config.NumberColumn("TALEP EDİLEN SAAT", format="%.2f"),
-                "ONAYLANAN SAAT": st.column_config.NumberColumn("ONAYLANAN SAAT", format="%.2f"),
-                "SAATLİK ÜCRET": st.column_config.NumberColumn("SAATLİK ÜCRET", format="%.2f"),
-                "TALEP EDİLEN TUTAR": st.column_config.NumberColumn("TALEP EDİLEN TUTAR", format="%.2f"),
-                "ONAYLANAN TUTAR": st.column_config.NumberColumn("ONAYLANAN TUTAR", format="%.2f"),
-                "KESİNTİ TUTARI": st.column_config.NumberColumn("KESİNTİ TUTARI", format="%.2f"),
+                "TALEP EDİLEN SAAT": st.column_config.TextColumn("TALEP EDİLEN SAAT (Örn: 26,92)"),
+                "ONAYLANAN SAAT": st.column_config.TextColumn("ONAYLANAN SAAT (Örn: 20,50)"),
+                "SAATLİK ÜCRET": st.column_config.TextColumn("SAATLİK ÜCRET (Örn: 500)"),
+                "TALEP EDİLEN TUTAR": st.column_config.TextColumn("TALEP EDİLEN TUTAR", disabled=True),
+                "ONAYLANAN TUTAR": st.column_config.TextColumn("ONAYLANAN TUTAR", disabled=True),
+                "KESİNTİ TUTARI": st.column_config.TextColumn("KESİNTİ TUTARI (Örn: 0)"),
                 "KESİNTİ AÇIKLAMASI": st.column_config.TextColumn("KESİNTİ AÇIKLAMASI"),
-                "GENEL AÇıklama": st.column_config.TextColumn("GENEL AÇıklama")
+                "GENEL AÇIKLAMA": st.column_config.TextColumn("GENEL AÇIKLAMA")
             },
             use_container_width=True,
             key="gecmis_editor_final"
@@ -751,16 +771,20 @@ with tab4:
         if st.button("🔄 Saatleri Saatlik Ücretle Çarp & Sheets'e Kaydet", use_container_width=True, type="primary"):
             updated_records = []
             for index, row in gecmis_df_editable.iterrows():
-                t_saat = float(row.get("TALEP EDİLEN SAAT", 0.0) or 0.0)
-                o_saat = float(row.get("ONAYLANAN SAAT", 0.0) or 0.0)
-                s_ucret = float(row.get("SAATLİK ÜCRET", 0.0) or 0.0)
+                row_dict = row.to_dict()
+                t_saat = parse_float_tr(row_dict.get("TALEP EDİLEN SAAT", 0.0))
+                o_saat = parse_float_tr(row_dict.get("ONAYLANAN SAAT", 0.0))
+                s_ucret = parse_float_tr(row_dict.get("SAATLİK ÜCRET", 0.0))
                 
-                row["TALEP EDİLEN TUTAR"] = round(t_saat * s_ucret, 2)
-                row["ONAYLANAN TUTAR"] = round(o_saat * s_ucret, 2)
-                updated_records.append(row.to_dict())
+                row_dict["TALEP EDİLEN SAAT"] = t_saat
+                row_dict["ONAYLANAN SAAT"] = o_saat
+                row_dict["SAATLİK ÜCRET"] = s_ucret
+                row_dict["TALEP EDİLEN TUTAR"] = round(t_saat * s_ucret, 2)
+                row_dict["ONAYLANAN TUTAR"] = round(o_saat * s_ucret, 2)
+                updated_records.append(row_dict)
                 
             if update_gecmis_google_sheet(updated_records):
-                st.success("Geçmiş dönem verileriniz başarıyla Google Sheets'e kaydedildi!")
+                st.success("Geçmiş dönem verileriniz ve hesaplamalarınız başarıyla Google Sheets'e kaydedildi!")
                 st.rerun()
     else:
         st.info("ℹ️ Geçmiş dönem verilerini yalnızca **Yönetici (Ömer OCAK)** düzenleyebilir veya silebilir. Bu sayfayı şu an salt okunur olarak görüntülemektesiniz.")
@@ -864,7 +888,7 @@ with tab6:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("❌ Bu ID'ye Sahip Ödemeyi Sil", type="primary", use_container_width=True):
                 mevcut_odemeler = st.session_state["odeme_kayitlari"]
-                yeni_odemeler = [item for item in mevcut_odemeler if item.get("ID") != silinecek_odeme_id]
+                yeni_odemeler = [item for item in mevcut_odemeler if parse_float_tr(item.get("ID")) != silinecek_odeme_id]
                 if len(yeni_odemeler) < len(mevcut_odemeler):
                     if update_odeme_google_sheet(yeni_odemeler):
                         st.success(f"ID #{silinecek_odeme_id} numaralı ödeme kaydı silindi!")
