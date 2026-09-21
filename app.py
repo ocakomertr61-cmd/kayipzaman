@@ -440,13 +440,25 @@ with tab1:
                         yeni_satirlar = []
                         for idx, row in upl_df.iterrows():
                             max_id += 1
-                            # Resimde belirtilen sütun adlarına göre nokta atışı eşleştirme
+                            
                             ref_val = str(row.get("Referans", row.get("Referans No", "")))
+                            if ref_val == "nan" or not ref_val.strip():
+                                ref_val = "Bilinmiyor"
+                                
                             sorumlu_val = str(row.get("Seri Sorumlusu", row.get("Sorumlu Mühendis", "")))
+                            if sorumlu_val == "nan": sorumlu_val = ""
+                            
                             aciklama_val = str(row.get("Uygulanan İşlem(Açıklama)", row.get("İşlem Açıklaması", "")))
-                            adet_val = parse_float_tr(row.get("Adet", row.get("Gelen Parti Miktarı", 0)))
-                            ph_val = parse_float_tr(row.get("PH", row.get("P/H", 520.0)))
-                            talep_saat_val = parse_float_tr(row.get("Talep Edilen Saat", row.get("Kayıp Zaman (Saat", 0.0)))
+                            if aciklama_val == "nan": aciklama_val = ""
+                            
+                            adet_raw = row.get("Adet", row.get("Gelen Parti Miktarı", 0))
+                            adet_val = int(parse_float_tr(adet_raw)) if pd.notna(adet_raw) else 0
+                            
+                            ph_raw = row.get("PH", row.get("P/H", 520.0))
+                            ph_val = parse_float_tr(ph_raw) if pd.notna(ph_raw) and parse_float_tr(ph_raw) > 0 else 520.0
+                            
+                            talep_saat_raw = row.get("Talep Edilen Saat", row.get("Kayıp Zaman (Saat", 0.0))
+                            talep_saat_val = parse_float_tr(talep_saat_raw) if pd.notna(talep_saat_raw) else 0.0
                             
                             yeni_satirlar.append({
                                 "ID": max_id,
@@ -460,9 +472,9 @@ with tab1:
                                 "Seri No": "",
                                 "Duruş Nedeni": DURUS_NEDENLERI[0],
                                 "İşlem Açıklaması": aciklama_val,
-                                "Gelen Parti Miktarı": int(adet_val),
+                                "Gelen Parti Miktarı": adet_val,
                                 "Hata Oranı (%)": 100.0,
-                                "P/H": ph_val if ph_val > 0 else 520.0,
+                                "P/H": ph_val,
                                 "Hesaplanan Zaman (Saat)": talep_saat_val,
                                 "Kayıp Zaman (Saat)": talep_saat_val,
                                 "Saatlik İşçilik Ücreti (TL)": 500.0,
