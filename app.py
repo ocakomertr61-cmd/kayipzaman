@@ -503,16 +503,18 @@ if not st.session_state["logged_in"]:
         else:
           st.error("Hatalı parola!")
   st.stop()
-
 # --- SİDEBAR ---
 user = st.session_state["user_info"]
 st.sidebar.title(f"👤 {user['name']}")
-st.sidebar.caption(
-    f"Grup: {user['group']} | Rol:"
-    f" {'Yönetici (Admin)' if user['role'] == 'admin' else 'Muhasebe' if"
-    " user['role'] == 'accounting' else 'Kullanıcı'}"
-)
 
+if user["role"] == "admin":
+  rol_adi = "Yönetici (Admin)"
+elif user["role"] == "accounting":
+  rol_adi = "Muhasebe"
+else:
+  rol_adi = "Kullanıcı"
+
+st.sidebar.caption(f"Grup: {user['group']} | Rol: {rol_adi}")
 with st.sidebar.expander("🔑 Parola Değiştir"):
   with st.form("change_pass_form"):
     old_p = st.text_input("Mevcut Parola", type="password")
