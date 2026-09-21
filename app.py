@@ -30,7 +30,7 @@ DURUS_NEDENLERI = [
 
 DONEM_LISTESI = [
     "Ocak 2026", "Şubat 2026", "Mart 2026", "Nisan 2026", "Mayıs 2026", "Haziran 2026",
-    "Temmuz 2026", "Ağustos 2026", "Ekim 2026", "Kasım 2026", "Aralık 2026",
+    "Temmuz 2026", "Ağustos 2026", "Eylül 2026", "Ekim 2026", "Kasım 2026", "Aralık 2026",
     "Ocak 2027", "Şubat 2027", "Mart 2027", "Nisan 2027", "Mayıs 2027", "Haziran 2027",
     "Temmuz 2027", "Ağustos 2027", "Eylül 2027", "Ekim 2027", "Kasım 2027", "Aralık 2027"
 ]
@@ -100,7 +100,7 @@ def fetch_main_data_from_sheet():
         
         if "Dönem (Ay/Yıl)" in df.columns:
             df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].astype(str).str.strip()
-            df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].replace(["nan", "None", ""], "Ekim 2026")
+            df["Dönem (Ay/Yıl)"] = df["Dönem (Ay/Yıl)"].replace(["nan", "None"], "")
             
         return df
     except Exception as e:
@@ -460,11 +460,15 @@ with tab1:
                             talep_saat_raw = row.get("Talep Edilen Saat", row.get("Kayıp Zaman (Saat", 0.0))
                             talep_saat_val = parse_float_tr(talep_saat_raw) if pd.notna(talep_saat_raw) else 0.0
                             
+                            # Dosyada döneme ait bir sütun varsa onu alıyoruz, yoksa formda seçilen dönemi baz alıyoruz
+                            dosya_donem = str(row.get("Dönem (Ay/Yıl)", row.get("DÖNEM", ""))).strip()
+                            aktif_donem = dosya_donem if dosya_donem and dosya_donem != "nan" else st.session_state.get("f_donem", "Eylül 2026")
+                            
                             yeni_satirlar.append({
                                 "ID": max_id,
                                 "Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"),
                                 "Kayıp Zaman Türü": KAYIP_ZAMAN_TURU_OPSIYONLARI[0],
-                                "Dönem (Ay/Yıl)": "Ekim 2026",
+                                "Dönem (Ay/Yıl)": aktif_donem,
                                 "Müşteri Adı": "Legrand",
                                 "Sorumlu Mühendis": sorumlu_val,
                                 "İrsaliye No": "",
@@ -616,7 +620,7 @@ with tab1:
         ]
         
         if not donem_secenekleri:
-            donem_secenekleri = ["Ekim 2026 — Onaylanan Tutar: 0,00 TL"]
+            donem_secenekleri = ["Eylül 2026 — Onaylanan Tutar: 0,00 TL"]
 
         if "muh_secilen_donem_str" not in st.session_state:
             st.session_state["muh_secilen_donem_str"] = donem_secenekleri[0]
